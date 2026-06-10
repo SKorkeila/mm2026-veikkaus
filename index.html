@@ -434,18 +434,25 @@ function initials(name) {
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 
 async function loadPlayersForLogin() {
+  const c = document.getElementById('loginPlayerList');
+  const sub = document.getElementById('loginSub');
   try {
+    // Show loading state
+    if(c) c.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:1rem">Ladataan…</div>';
+
     const { data, error } = await db.from('players').select('*').order('slot');
     if(error) throw error;
     players = data || [];
     renderLoginList();
   } catch(e) {
     console.error('loadPlayersForLogin failed:', e);
-    // Show error in login UI so user knows what happened
-    const sub = document.getElementById('loginSub');
-    if(sub) sub.textContent = 'Yhteysvirhe – tarkista internet ja päivitä sivu.';
-    const c = document.getElementById('loginPlayerList');
-    if(c) c.innerHTML = '<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">Tietokantaan ei saatu yhteyttä.</div>';
+    if(sub) sub.textContent = 'Yhteysvirhe';
+    if(c) c.innerHTML = `<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">
+      Tietokantaan ei saatu yhteyttä.<br>
+      <button onclick="loadPlayersForLogin()" style="margin-top:8px;padding:6px 14px;background:var(--green);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer">
+        Yritä uudelleen
+      </button>
+    </div>`;
   }
 }
 
@@ -1086,7 +1093,7 @@ async function init() {
   // Show login overlay – it's already visible by default
 }
 
-init();
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
