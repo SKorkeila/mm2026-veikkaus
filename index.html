@@ -72,6 +72,9 @@
   .phase-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .phase-tab { padding: 6px 13px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
   .phase-tab.active { background: var(--green-light); color: var(--green); border-color: var(--green-mid); }
+  .group-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .group-tab { padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .group-tab.active { background: var(--green); color: white; border-color: var(--green); }
   .group-tag { display: inline-block; background: var(--green-light); color: var(--green); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; margin: 0.75rem 0 0.5rem; }
 
   .match.locked { opacity: 0.85; }
@@ -192,6 +195,7 @@
     <h2>Omat veikkaukseni</h2>
     <div class="info"><strong>Pisteet:</strong> Oikea voittaja/tasapeli = 2 p &nbsp;·&nbsp; Tarkka tulos lisäksi = +1 p (max 3 p) &nbsp;·&nbsp; Väärä = 0 p</div>
     <div class="phase-tabs" id="predictPhaseTabs"></div>
+    <div class="group-tabs" id="predictGroupTabs" style="display:none"></div>
     <div id="predictContent"><div class="loading">Ladataan…</div></div>
   </div>
 
@@ -562,12 +566,42 @@ function buildPhaseTabs(cid, cur, fn) {
 
 // ── PREDICTIONS ───────────────────────────────────────────────────────────────
 
-function setPredPhase(ph) { currentPredPhase=ph; renderPredictions(); }
+let currentGroup = null; // null = show all groups
+
+function setPredPhase(ph) {
+  currentPredPhase = ph;
+  currentGroup = null;
+  renderGroupTabs();
+  renderPredictions();
+}
+
+function setGroupFilter(g) {
+  currentGroup = currentGroup === g ? null : g; // toggle
+  renderGroupTabs();
+  renderPredictions();
+}
+
+function renderGroupTabs() {
+  const container = document.getElementById('predictGroupTabs');
+  if(currentPredPhase !== 'group') {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  const groups = [...new Set(MATCHES.group.map(m => m.group))].sort();
+  container.innerHTML = groups.map(g =>
+    `<button class="group-tab ${currentGroup===g?'active':''}" onclick="setGroupFilter('${g}')">Lohko ${g}</button>`
+  ).join('');
+}
 
 function renderPredictions() {
   buildPhaseTabs('predictPhaseTabs', currentPredPhase, 'setPredPhase');
+  renderGroupTabs();
   if(!me) return;
-  const matches = MATCHES[currentPredPhase]||[];
+  let matches = MATCHES[currentPredPhase]||[];
+  if(currentPredPhase === 'group' && currentGroup) {
+    matches = matches.filter(m => m.group === currentGroup);
+  }
   const c = document.getElementById('predictContent');
   let html='', lastGroup='';
   matches.forEach(m => {
