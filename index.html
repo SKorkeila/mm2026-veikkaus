@@ -68,6 +68,10 @@
   .page.active { display: block; }
   h2 { font-size: 17px; font-weight: 600; margin-bottom: 1rem; }
 
+  .score-filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .score-filter-btn { padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .score-filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
+  .score-filter-section { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 2px; align-self: center; }
   .info { background: var(--green-light); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--green); margin-bottom: 1rem; line-height: 1.6; }
   .phase-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 1.25rem; }
   .phase-tab { padding: 6px 13px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
@@ -208,6 +212,7 @@
 
   <div id="page-scores" class="page">
     <h2>Pistetaulukko</h2>
+    <div class="score-filter-row" id="scoreFilterRow"></div>
     <div id="scoresContent"><div class="loading">Ladataan…</div></div>
   </div>
 
@@ -731,21 +736,70 @@ function getPoints(matchId, playerId) {
   return pred.home_score===act.home_score&&pred.away_score===act.away_score ? 3 : 2;
 }
 
+let scoreFilter = 'all'; // 'all' | phase key | 'group:X'
+
+function buildScoreFilters() {
+  const row = document.getElementById('scoreFilterRow');
+  if(!row) return;
+  const groups = [...new Set(MATCHES.group.map(m=>m.group))].sort();
+  const phaseLabels = {r32:'32 parasta',r16:'16 parasta',qf:'Neljännesvälierät',sf:'Välierät',final:'Finaali'};
+
+  let html = `<span class="score-filter-section">Vaihe:</span>
+    <button class="score-filter-btn ${scoreFilter==='all'?'active':''}" onclick="setScoreFilter('all')">Kaikki</button>`;
+  Object.entries(phaseLabels).forEach(([k,v])=>{
+    const hasResults = MATCHES[k].some(m=>actuals[m.id]&&actuals[m.id].home_score!==null);
+    if(hasResults) html+=`<button class="score-filter-btn ${scoreFilter===k?'active':''}" onclick="setScoreFilter('${k}')">${v}</button>`;
+  });
+  html+=`<span class="score-filter-section" style="margin-left:4px">Lohko:</span>`;
+  groups.forEach(g=>{
+    const key='group:'+g;
+    const hasResults = MATCHES.group.filter(m=>m.group===g).some(m=>actuals[m.id]&&actuals[m.id].home_score!==null);
+    if(hasResults) html+=`<button class="score-filter-btn ${scoreFilter===key?'active':''}" onclick="setScoreFilter('${key}')">Lohko ${g}</button>`;
+  });
+  row.innerHTML = html;
+}
+
+function setScoreFilter(f) {
+  scoreFilter = f;
+  renderScores();
+}
+
+function getFilteredMatches() {
+  if(scoreFilter === 'all') return Object.values(MATCHES).flat();
+  if(scoreFilter.startsWith('group:')) {
+    const g = scoreFilter.split(':')[1];
+    return MATCHES.group.filter(m=>m.group===g);
+  }
+  return MATCHES[scoreFilter]||[];
+}
+
 function renderScores() {
-  const all=Object.values(MATCHES).flat();
+  buildScoreFilters();
+  const filtered = getFilteredMatches();
   const medals=['🥇','🥈','🥉','4.','5.'];
   const stats=players.map(p=>{
     let total=0,exact=0,winner=0,played=0;
-    all.forEach(m=>{const pts=getPoints(m.id,p.id);if(pts===null)return;played++;total+=pts;if(pts===3)exact++;if(pts===1)winner++;});
+    filtered.forEach(m=>{const pts=getPoints(m.id,p.id);if(pts===null)return;played++;total+=pts;if(pts===3)exact++;if(pts===2)winner++;});
     return{...p,total,exact,winner,played};
-  }).sort((a,b)=>b.total-a.total);
+  }).sort((a,b)=>b.total-a.total||b.exact-a.exact);
+
+  // Filter label
+  const filterLabels = {
+    all:'Kaikki ottelut',r32:'32 parhaan kierros',r16:'16 parhaan kierros',
+    qf:'Neljännesvälierät',sf:'Välierät',final:'Finaali'
+  };
+  const label = scoreFilter.startsWith('group:')
+    ? 'Lohko '+scoreFilter.split(':')[1]
+    : filterLabels[scoreFilter]||scoreFilter;
 
   let html=`<div class="scoreboard">
     <div class="sb-head"><div></div><div>Pelaaja</div><div style="text-align:center">Pisteet</div><div style="text-align:center">Tarkka (3p)</div><div style="text-align:center">Voittaja (2p)</div></div>`;
   stats.forEach((p,i)=>{
     const isMe=me&&p.id===me.id;
-    html+=`<div class="sb-row ${i===0?'rank1':''} ${isMe?'me':''}">
-      <div class="sb-rank">${medals[i]||''}</div>
+    // Only show medal for players with points
+    const medal = p.total > 0 ? (medals[i]||'') : '';
+    html+=`<div class="sb-row ${i===0&&p.total>0?'rank1':''} ${isMe?'me':''}">
+      <div class="sb-rank">${medal}</div>
       <div class="sb-name">${p.name}${isMe?'<span class="sb-me-tag">sinä</span>':''}</div>
       <div class="sb-pts">${p.total}</div>
       <div class="sb-sub">${p.exact}</div>
@@ -753,8 +807,8 @@ function renderScores() {
     </div>`;
   });
   html+='</div>';
-  const played=all.filter(m=>actuals[m.id]&&actuals[m.id].home_score!==null).length;
-  html+=`<div class="info" style="margin-top:1rem">Kirjattuja otteluita: ${played} / ${all.length} &nbsp;·&nbsp; Oikea voittaja/tasu = 2 p &nbsp;·&nbsp; Tarkka tulos = 3 p</div>`;
+  const played=filtered.filter(m=>actuals[m.id]&&actuals[m.id].home_score!==null).length;
+  html+=`<div class="info" style="margin-top:1rem"><strong>${label}</strong> &nbsp;·&nbsp; ${played} / ${filtered.length} ottelua kirjattu &nbsp;·&nbsp; Voittaja = 2 p &nbsp;·&nbsp; Tarkka = 3 p</div>`;
   document.getElementById('scoresContent').innerHTML=html;
 }
 
