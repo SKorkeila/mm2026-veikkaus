@@ -74,7 +74,8 @@
   .phase-tab.active { background: var(--green-light); color: var(--green); border-color: var(--green-mid); }
   .group-tag { display: inline-block; background: var(--green-light); color: var(--green); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; margin: 0.75rem 0 0.5rem; }
 
-  .match { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.75rem; overflow: hidden; }
+  .match.locked { opacity: 0.85; }
+  .match.locked .match-head { background: #fafaf8; }
   .match-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 1rem; background: var(--bg); border-bottom: 1px solid var(--border); }
   .match-teams { font-size: 14px; font-weight: 600; }
   .match-date { font-size: 12px; color: var(--text-muted); }
@@ -196,7 +197,7 @@
 
   <div id="page-results" class="page">
     <h2>Todelliset tulokset</h2>
-    <div class="info">Kirjaa otteluiden todelliset lopputulokset. Pisteet lasketaan automaattisesti kaikille.</div>
+    <div class="info">Tulokset päivittyvät automaattisesti API:sta 30 minuutin välein. Pisteet lasketaan heti kun tulos on saatavilla.</div>
     <div class="phase-tabs" id="resultPhaseTabs"></div>
     <div id="resultsContent"><div class="loading">Ladataan…</div></div>
   </div>
@@ -221,88 +222,109 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ko = UTC kickoff ISO string. Predictions lock at kickoff.
 const MATCHES = {
   group:[
-    {id:'A1',home:'Meksiko',away:'Etelä-Afrikka',date:'11.6.',group:'A'},
-    {id:'A2',home:'Etelä-Korea',away:'Tshekki',date:'11.6.',group:'A'},
-    {id:'A3',home:'Meksiko',away:'Tshekki',date:'15.6.',group:'A'},
-    {id:'A4',home:'Etelä-Afrikka',away:'Etelä-Korea',date:'15.6.',group:'A'},
-    {id:'A5',home:'Etelä-Korea',away:'Meksiko',date:'19.6.',group:'A'},
-    {id:'A6',home:'Tshekki',away:'Etelä-Afrikka',date:'19.6.',group:'A'},
-    {id:'B1',home:'Kanada',away:'Bosnia-Hertsegovina',date:'12.6.',group:'B'},
-    {id:'B2',home:'Hollanti',away:'Ecuador',date:'12.6.',group:'B'},
-    {id:'B3',home:'Kanada',away:'Ecuador',date:'16.6.',group:'B'},
-    {id:'B4',home:'Bosnia-Hertsegovina',away:'Hollanti',date:'16.6.',group:'B'},
-    {id:'B5',home:'Ecuador',away:'Bosnia-Hertsegovina',date:'20.6.',group:'B'},
-    {id:'B6',home:'Hollanti',away:'Kanada',date:'20.6.',group:'B'},
-    {id:'C1',home:'Brasilia',away:'Kroatia',date:'13.6.',group:'C'},
-    {id:'C2',home:'Japani',away:'Chile',date:'13.6.',group:'C'},
-    {id:'C3',home:'Brasilia',away:'Chile',date:'17.6.',group:'C'},
-    {id:'C4',home:'Kroatia',away:'Japani',date:'17.6.',group:'C'},
-    {id:'C5',home:'Chile',away:'Kroatia',date:'21.6.',group:'C'},
-    {id:'C6',home:'Japani',away:'Brasilia',date:'21.6.',group:'C'},
-    {id:'D1',home:'USA',away:'Paraguay',date:'12.6.',group:'D'},
-    {id:'D2',home:'Saksa',away:'Kolumbia',date:'14.6.',group:'D'},
-    {id:'D3',home:'USA',away:'Kolumbia',date:'18.6.',group:'D'},
-    {id:'D4',home:'Paraguay',away:'Saksa',date:'18.6.',group:'D'},
-    {id:'D5',home:'Kolumbia',away:'Paraguay',date:'22.6.',group:'D'},
-    {id:'D6',home:'Saksa',away:'USA',date:'22.6.',group:'D'},
-    {id:'E1',home:'Englanti',away:'Kenia',date:'13.6.',group:'E'},
-    {id:'E2',home:'Italia',away:'Costa Rica',date:'15.6.',group:'E'},
-    {id:'E3',home:'Englanti',away:'Costa Rica',date:'19.6.',group:'E'},
-    {id:'E4',home:'Kenia',away:'Italia',date:'19.6.',group:'E'},
-    {id:'E5',home:'Costa Rica',away:'Kenia',date:'23.6.',group:'E'},
-    {id:'E6',home:'Italia',away:'Englanti',date:'23.6.',group:'E'},
-    {id:'F1',home:'Portugal',away:'Marokko',date:'13.6.',group:'F'},
-    {id:'F2',home:'Ranska',away:'Senegal',date:'16.6.',group:'F'},
-    {id:'F3',home:'Portugal',away:'Senegal',date:'20.6.',group:'F'},
-    {id:'F4',home:'Marokko',away:'Ranska',date:'20.6.',group:'F'},
-    {id:'F5',home:'Senegal',away:'Marokko',date:'24.6.',group:'F'},
-    {id:'F6',home:'Ranska',away:'Portugal',date:'24.6.',group:'F'},
-    {id:'G1',home:'Belgia',away:'Egypti',date:'15.6.',group:'G'},
-    {id:'G2',home:'Iran',away:'Uusi-Seelanti',date:'15.6.',group:'G'},
-    {id:'G3',home:'Belgia',away:'Uusi-Seelanti',date:'19.6.',group:'G'},
-    {id:'G4',home:'Egypti',away:'Iran',date:'19.6.',group:'G'},
-    {id:'G5',home:'Uusi-Seelanti',away:'Egypti',date:'23.6.',group:'G'},
-    {id:'G6',home:'Iran',away:'Belgia',date:'23.6.',group:'G'},
-    {id:'H1',home:'Espanja',away:'Kap Verde',date:'15.6.',group:'H'},
-    {id:'H2',home:'Saudi-Arabia',away:'Uruguay',date:'15.6.',group:'H'},
-    {id:'H3',home:'Espanja',away:'Uruguay',date:'19.6.',group:'H'},
-    {id:'H4',home:'Kap Verde',away:'Saudi-Arabia',date:'19.6.',group:'H'},
-    {id:'H5',home:'Uruguay',away:'Kap Verde',date:'23.6.',group:'H'},
-    {id:'H6',home:'Saudi-Arabia',away:'Espanja',date:'23.6.',group:'H'},
+    {id:'A1',home:'Meksiko',away:'Etelä-Afrikka',date:'11.6.',group:'A',ko:'2026-06-11T19:00Z'},
+    {id:'A2',home:'Etelä-Korea',away:'Tshekki',date:'12.6.',group:'A',ko:'2026-06-12T02:00Z'},
+    {id:'A3',home:'Meksiko',away:'Tshekki',date:'16.6.',group:'A',ko:'2026-06-16T02:00Z'},
+    {id:'A4',home:'Etelä-Afrikka',away:'Etelä-Korea',date:'16.6.',group:'A',ko:'2026-06-16T19:00Z'},
+    {id:'A5',home:'Etelä-Korea',away:'Meksiko',date:'20.6.',group:'A',ko:'2026-06-20T02:00Z'},
+    {id:'A6',home:'Tshekki',away:'Etelä-Afrikka',date:'20.6.',group:'A',ko:'2026-06-20T02:00Z'},
+    {id:'B1',home:'Kanada',away:'Bosnia-Herts.',date:'12.6.',group:'B',ko:'2026-06-12T19:00Z'},
+    {id:'B2',home:'Qatar',away:'Sveitsi',date:'13.6.',group:'B',ko:'2026-06-13T19:00Z'},
+    {id:'B3',home:'Kanada',away:'Sveitsi',date:'17.6.',group:'B',ko:'2026-06-17T19:00Z'},
+    {id:'B4',home:'Bosnia-Herts.',away:'Qatar',date:'17.6.',group:'B',ko:'2026-06-17T22:00Z'},
+    {id:'B5',home:'Sveitsi',away:'Bosnia-Herts.',date:'21.6.',group:'B',ko:'2026-06-21T19:00Z'},
+    {id:'B6',home:'Qatar',away:'Kanada',date:'21.6.',group:'B',ko:'2026-06-21T19:00Z'},
+    {id:'C1',home:'Brasilia',away:'Marokko',date:'13.6.',group:'C',ko:'2026-06-13T22:00Z'},
+    {id:'C2',home:'Haiti',away:'Skotlanti',date:'14.6.',group:'C',ko:'2026-06-14T01:00Z'},
+    {id:'C3',home:'Brasilia',away:'Skotlanti',date:'18.6.',group:'C',ko:'2026-06-18T22:00Z'},
+    {id:'C4',home:'Marokko',away:'Haiti',date:'18.6.',group:'C',ko:'2026-06-18T19:00Z'},
+    {id:'C5',home:'Skotlanti',away:'Haiti',date:'22.6.',group:'C',ko:'2026-06-22T22:00Z'},
+    {id:'C6',home:'Marokko',away:'Brasilia',date:'22.6.',group:'C',ko:'2026-06-22T22:00Z'},
+    {id:'D1',home:'USA',away:'Paraguay',date:'13.6.',group:'D',ko:'2026-06-13T01:00Z'},
+    {id:'D2',home:'Australia',away:'Turkki',date:'14.6.',group:'D',ko:'2026-06-14T16:00Z'},
+    {id:'D3',home:'USA',away:'Turkki',date:'18.6.',group:'D',ko:'2026-06-18T01:00Z'},
+    {id:'D4',home:'Paraguay',away:'Australia',date:'18.6.',group:'D',ko:'2026-06-18T16:00Z'},
+    {id:'D5',home:'Turkki',away:'Paraguay',date:'22.6.',group:'D',ko:'2026-06-22T01:00Z'},
+    {id:'D6',home:'Australia',away:'USA',date:'22.6.',group:'D',ko:'2026-06-22T01:00Z'},
+    {id:'E1',home:'Saksa',away:'Curaçao',date:'14.6.',group:'E',ko:'2026-06-14T17:00Z'},
+    {id:'E2',home:'Espanja',away:'Kap Verde',date:'15.6.',group:'E',ko:'2026-06-15T18:00Z'},
+    {id:'E3',home:'Saksa',away:'Kap Verde',date:'19.6.',group:'E',ko:'2026-06-19T17:00Z'},
+    {id:'E4',home:'Espanja',away:'Curaçao',date:'19.6.',group:'E',ko:'2026-06-19T21:00Z'},
+    {id:'E5',home:'Kap Verde',away:'Espanja',date:'23.6.',group:'E',ko:'2026-06-23T21:00Z'},
+    {id:'E6',home:'Curaçao',away:'Saksa',date:'23.6.',group:'E',ko:'2026-06-23T21:00Z'},
+    {id:'F1',home:'Hollanti',away:'Japani',date:'14.6.',group:'F',ko:'2026-06-14T20:00Z'},
+    {id:'F2',home:'Englanti',away:'Kroatia',date:'15.6.',group:'F',ko:'2026-06-15T20:00Z'},
+    {id:'F3',home:'Hollanti',away:'Kroatia',date:'19.6.',group:'F',ko:'2026-06-19T20:00Z'},
+    {id:'F4',home:'Englanti',away:'Japani',date:'20.6.',group:'F',ko:'2026-06-20T01:00Z'},
+    {id:'F5',home:'Kroatia',away:'Englanti',date:'24.6.',group:'F',ko:'2026-06-24T20:00Z'},
+    {id:'F6',home:'Japani',away:'Hollanti',date:'24.6.',group:'F',ko:'2026-06-24T20:00Z'},
+    {id:'G1',home:'Portugali',away:'Senegal',date:'15.6.',group:'G',ko:'2026-06-15T00:00Z'},
+    {id:'G2',home:'Ranska',away:'Norja',date:'15.6.',group:'G',ko:'2026-06-15T21:00Z'},
+    {id:'G3',home:'Portugali',away:'Norja',date:'19.6.',group:'G',ko:'2026-06-19T00:00Z'},
+    {id:'G4',home:'Ranska',away:'Senegal',date:'19.6.',group:'G',ko:'2026-06-19T21:00Z'},
+    {id:'G5',home:'Norja',away:'Ranska',date:'23.6.',group:'G',ko:'2026-06-23T00:00Z'},
+    {id:'G6',home:'Senegal',away:'Portugali',date:'23.6.',group:'G',ko:'2026-06-23T00:00Z'},
+    {id:'H1',home:'Espanja',away:'Saudi-Arabia',date:'15.6.',group:'H',ko:'2026-06-15T18:00Z'},
+    {id:'H2',home:'Belgia',away:'Uruguay',date:'16.6.',group:'H',ko:'2026-06-16T00:00Z'},
+    {id:'H3',home:'Espanja',away:'Uruguay',date:'20.6.',group:'H',ko:'2026-06-20T02:00Z'},
+    {id:'H4',home:'Saudi-Arabia',away:'Belgia',date:'20.6.',group:'H',ko:'2026-06-20T18:00Z'},
+    {id:'H5',home:'Uruguay',away:'Saudi-Arabia',date:'24.6.',group:'H',ko:'2026-06-24T18:00Z'},
+    {id:'H6',home:'Belgia',away:'Espanja',date:'24.6.',group:'H',ko:'2026-06-24T18:00Z'},
   ],
   r32:[
-    {id:'R32_1',home:'1A',away:'3. sija',date:'27.6.',group:'32 parhaan kierros'},
-    {id:'R32_2',home:'1B',away:'2A',date:'27.6.',group:'32 parhaan kierros'},
-    {id:'R32_3',home:'1C',away:'3. sija',date:'28.6.',group:'32 parhaan kierros'},
-    {id:'R32_4',home:'1D',away:'2C',date:'28.6.',group:'32 parhaan kierros'},
-    {id:'R32_5',home:'1E',away:'2D',date:'29.6.',group:'32 parhaan kierros'},
-    {id:'R32_6',home:'1F',away:'2E',date:'29.6.',group:'32 parhaan kierros'},
-    {id:'R32_7',home:'1G',away:'2F',date:'30.6.',group:'32 parhaan kierros'},
-    {id:'R32_8',home:'1H',away:'2G',date:'30.6.',group:'32 parhaan kierros'},
+    {id:'R32_1',home:'1A',away:'3. sija',date:'27.6.',group:'32 parhaan kierros',ko:'2026-06-27T17:00Z'},
+    {id:'R32_2',home:'1B',away:'2A',date:'27.6.',group:'32 parhaan kierros',ko:'2026-06-27T20:00Z'},
+    {id:'R32_3',home:'1C',away:'3. sija',date:'28.6.',group:'32 parhaan kierros',ko:'2026-06-28T17:00Z'},
+    {id:'R32_4',home:'1D',away:'2C',date:'28.6.',group:'32 parhaan kierros',ko:'2026-06-28T20:00Z'},
+    {id:'R32_5',home:'1E',away:'2D',date:'29.6.',group:'32 parhaan kierros',ko:'2026-06-29T17:00Z'},
+    {id:'R32_6',home:'1F',away:'2E',date:'29.6.',group:'32 parhaan kierros',ko:'2026-06-29T20:00Z'},
+    {id:'R32_7',home:'1G',away:'2F',date:'30.6.',group:'32 parhaan kierros',ko:'2026-06-30T17:00Z'},
+    {id:'R32_8',home:'1H',away:'2G',date:'30.6.',group:'32 parhaan kierros',ko:'2026-06-30T20:00Z'},
   ],
   r16:[
-    {id:'R16_1',home:'V R32-1',away:'V R32-2',date:'3.7.',group:'16 parhaan kierros'},
-    {id:'R16_2',home:'V R32-3',away:'V R32-4',date:'3.7.',group:'16 parhaan kierros'},
-    {id:'R16_3',home:'V R32-5',away:'V R32-6',date:'4.7.',group:'16 parhaan kierros'},
-    {id:'R16_4',home:'V R32-7',away:'V R32-8',date:'4.7.',group:'16 parhaan kierros'},
+    {id:'R16_1',home:'V R32-1',away:'V R32-2',date:'3.7.',group:'16 parhaan kierros',ko:'2026-07-03T17:00Z'},
+    {id:'R16_2',home:'V R32-3',away:'V R32-4',date:'3.7.',group:'16 parhaan kierros',ko:'2026-07-03T20:00Z'},
+    {id:'R16_3',home:'V R32-5',away:'V R32-6',date:'4.7.',group:'16 parhaan kierros',ko:'2026-07-04T17:00Z'},
+    {id:'R16_4',home:'V R32-7',away:'V R32-8',date:'4.7.',group:'16 parhaan kierros',ko:'2026-07-04T20:00Z'},
   ],
   qf:[
-    {id:'QF1',home:'V R16-1',away:'V R16-2',date:'7.7.',group:'Neljännesvälierät'},
-    {id:'QF2',home:'V R16-3',away:'V R16-4',date:'8.7.',group:'Neljännesvälierät'},
-    {id:'QF3',home:'V R16-5',away:'V R16-6',date:'9.7.',group:'Neljännesvälierät'},
-    {id:'QF4',home:'V R16-7',away:'V R16-8',date:'10.7.',group:'Neljännesvälierät'},
+    {id:'QF1',home:'V R16-1',away:'V R16-2',date:'7.7.',group:'Neljännesvälierät',ko:'2026-07-07T20:00Z'},
+    {id:'QF2',home:'V R16-3',away:'V R16-4',date:'8.7.',group:'Neljännesvälierät',ko:'2026-07-08T20:00Z'},
+    {id:'QF3',home:'V R16-5',away:'V R16-6',date:'9.7.',group:'Neljännesvälierät',ko:'2026-07-09T20:00Z'},
+    {id:'QF4',home:'V R16-7',away:'V R16-8',date:'10.7.',group:'Neljännesvälierät',ko:'2026-07-10T20:00Z'},
   ],
   sf:[
-    {id:'SF1',home:'V QF1',away:'V QF2',date:'14.7.',group:'Välierät'},
-    {id:'SF2',home:'V QF3',away:'V QF4',date:'15.7.',group:'Välierät'},
+    {id:'SF1',home:'V QF1',away:'V QF2',date:'14.7.',group:'Välierät',ko:'2026-07-14T20:00Z'},
+    {id:'SF2',home:'V QF3',away:'V QF4',date:'15.7.',group:'Välierät',ko:'2026-07-15T20:00Z'},
   ],
   final:[
-    {id:'THIRD',home:'H SF1',away:'H SF2',date:'18.7.',group:'Pronssiottelu'},
-    {id:'FINAL',home:'V SF1',away:'V SF2',date:'19.7.',group:'Finaali'},
+    {id:'THIRD',home:'H SF1',away:'H SF2',date:'18.7.',group:'Pronssiottelu',ko:'2026-07-18T20:00Z'},
+    {id:'FINAL',home:'V SF1',away:'V SF2',date:'19.7.',group:'Finaali',ko:'2026-07-19T19:00Z'},
   ]
 };
+
+function isLocked(match) {
+  if(!match.ko) return false;
+  return Date.now() >= new Date(match.ko).getTime();
+}
+
+function kickoffLabel(match) {
+  if(!match.ko) return match.date;
+  const d = new Date(match.ko);
+  const now = Date.now();
+  const diff = d.getTime() - now;
+  if(diff <= 0) return match.date + ' 🔒';
+  if(diff < 3600000) {
+    const mins = Math.ceil(diff/60000);
+    return `Lukittuu ${mins} min päästä`;
+  }
+  // Show local time in Finnish
+  const opts = {weekday:'short', day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Helsinki'};
+  return d.toLocaleString('fi-FI', opts);
+}
 
 const PHASES = [
   {key:'group',label:'Alkulohkot'},{key:'r32',label:'32 parasta'},
@@ -435,8 +457,24 @@ async function loadAll() {
     players = pr.data || [];
     predictions = {};
     (pred.data||[]).forEach(p => { predictions[`${p.match_id}_${p.player_id}`] = p; });
+
+    // Map API actuals to our match IDs by matching team names
     actuals = {};
-    (act.data||[]).forEach(a => { actuals[a.match_id] = a; });
+    const allMatches = Object.values(MATCHES).flat();
+    (act.data||[]).forEach(a => {
+      if(a.home_score === null || a.away_score === null) return;
+      // Direct match_id hit (manual entries)
+      if(allMatches.find(m => m.id === a.match_id)) {
+        actuals[a.match_id] = a;
+        return;
+      }
+      // Match by Finnish team names provided by Edge Function
+      if(a.home_team && a.away_team) {
+        const found = allMatches.find(m => m.home === a.home_team && m.away === a.away_team);
+        if(found) actuals[found.id] = a;
+      }
+    });
+
     setSyncState('ok');
     renderAdminSetup();
     renderPredictions();
@@ -476,7 +514,9 @@ function renderPredictions() {
     const myPred = predictions[`${m.id}_${me.id}`];
     const act = actuals[m.id];
     const pts = getPoints(m.id, me.id);
-    // others' predictions
+    const locked = isLocked(m);
+    const timeLabel = kickoffLabel(m);
+
     const otherPills = players.filter(p=>p.id!==me.id).map(p=>{
       const op = predictions[`${m.id}_${p.id}`];
       if(!op || op.home_score===null) return '';
@@ -484,25 +524,30 @@ function renderPredictions() {
     }).filter(Boolean).join('');
 
     const ptsHtml = pts!==null ? `<span class="pts-badge pts-${pts}">${pts===3?'3 p ✓':pts===1?'1 p':'0 p'}</span>` : '';
+    const lockHtml = locked ? `<span style="font-size:11px;color:var(--text-muted);margin-left:auto">🔒 Lukittu</span>` : '';
 
-    html += `<div class="match">
+    const inputStyle = locked ? 'opacity:0.5;pointer-events:none;background:#f0f0f0' : '';
+
+    html += `<div class="match${locked?' locked':''}">
       <div class="match-head">
         <span class="match-teams">${m.home} – ${m.away}</span>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           ${act&&act.home_score!==null?`<span style="font-size:12px;font-weight:700;color:var(--text-muted)">${act.home_score}–${act.away_score}</span>`:''}
-          <span class="match-date">${m.date}</span>
+          <span class="match-date" style="${locked?'color:#f59e0b':''}">${timeLabel}</span>
         </div>
       </div>
       <div class="match-body">
         <div class="my-pred">
           <div class="score-box">
-            <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?" 
+            <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?"
+              ${locked?'disabled':''} style="${inputStyle}"
               onchange="savePred('${m.id}','home',this.value)">
             <span class="score-sep">–</span>
             <input type="number" min="0" max="20" value="${myPred&&myPred.away_score!==null?myPred.away_score:''}" placeholder="?"
+              ${locked?'disabled':''} style="${inputStyle}"
               onchange="savePred('${m.id}','away',this.value)">
           </div>
-          ${ptsHtml}
+          ${ptsHtml}${lockHtml}
         </div>
         ${otherPills?`<div class="others-preds">${otherPills}</div>`:''}
       </div>
@@ -513,6 +558,9 @@ function renderPredictions() {
 
 async function savePred(matchId, side, val) {
   if(!me) return;
+  // Double-check lock on save (client-side safety net)
+  const match = Object.values(MATCHES).flat().find(m=>m.id===matchId);
+  if(match && isLocked(match)) return;
   setSyncState('syncing');
   const key=`${matchId}_${me.id}`;
   if(!predictions[key]) predictions[key]={match_id:matchId,player_id:me.id,home_score:null,away_score:null};
@@ -536,39 +584,42 @@ function renderResults() {
   buildPhaseTabs('resultPhaseTabs', currentResultPhase, 'setResultPhase');
   const matches = MATCHES[currentResultPhase]||[];
   const c = document.getElementById('resultsContent');
+  const played = matches.filter(m => actuals[m.id]);
+  const pending = matches.filter(m => !actuals[m.id]);
   let html='', lastGroup='';
+
+  if(played.length === 0 && pending.length > 0) {
+    html += '<div class="info" style="margin-bottom:1rem">Tuloksia ei vielä – päivittyy automaattisesti 30 min välein API:sta.</div>';
+  }
+
   matches.forEach(m => {
     if(m.group!==lastGroup){html+=`<div class="group-tag">Lohko ${m.group}</div>`;lastGroup=m.group;}
     const act=actuals[m.id];
-    html+=`<div class="match">
-      <div class="match-head"><span class="match-teams">${m.home} – ${m.away}</span><span class="match-date">${m.date}</span></div>
-      <div class="match-body">
-        <div class="actual-inputs">
-          <input type="number" min="0" max="20" value="${act&&act.home_score!==null?act.home_score:''}" placeholder="0"
-            onchange="saveActual('${m.id}','home',this.value)">
-          <span class="score-sep">–</span>
-          <input type="number" min="0" max="20" value="${act&&act.away_score!==null?act.away_score:''}" placeholder="0"
-            onchange="saveActual('${m.id}','away',this.value)">
+    const timeLabel = kickoffLabel(m);
+    const statusLabel = act?.status ? {FT:'Päättynyt',AET:'Päättynyt (jatkoaika)',PEN:'Päättynyt (rangaistuspotkut)','1H':'1. puoliaika','HT':'Puoliaika','2H':'2. puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'}[act.status] ?? act.status : null;
+
+    if(act && act.home_score !== null) {
+      html+=`<div class="match">
+        <div class="match-head">
+          <span class="match-teams">${m.home} – ${m.away}</span>
+          <span class="match-date" style="color:var(--green-mid)">${statusLabel||'Päättynyt'}</span>
         </div>
-      </div>
-    </div>`;
+        <div class="match-body" style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:28px;font-weight:700;letter-spacing:2px">${act.home_score} – ${act.away_score}</span>
+          <span style="font-size:12px;color:var(--text-muted)">${m.home} vs ${m.away}</span>
+        </div>
+      </div>`;
+    } else {
+      html+=`<div class="match" style="opacity:0.6">
+        <div class="match-head">
+          <span class="match-teams">${m.home} – ${m.away}</span>
+          <span class="match-date">${timeLabel}</span>
+        </div>
+        <div class="match-body" style="font-size:13px;color:var(--text-muted)">Tulos ei vielä saatavilla</div>
+      </div>`;
+    }
   });
   c.innerHTML = html||'<div class="loading">Ei otteluita.</div>';
-}
-
-async function saveActual(matchId, side, val) {
-  setSyncState('syncing');
-  if(!actuals[matchId]) actuals[matchId]={match_id:matchId,home_score:null,away_score:null};
-  actuals[matchId][side==='home'?'home_score':'away_score']=val===''?null:parseInt(val);
-  try {
-    await db.from('actuals').upsert({
-      match_id:matchId,
-      home_score:actuals[matchId].home_score,
-      away_score:actuals[matchId].away_score,
-      updated_at:new Date().toISOString()
-    },{onConflict:'match_id'});
-    setSyncState('ok');
-  } catch(e){setSyncState('error');}
 }
 
 // ── SCORES ────────────────────────────────────────────────────────────────────
