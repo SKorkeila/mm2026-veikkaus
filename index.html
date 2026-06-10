@@ -433,9 +433,19 @@ function initials(name) {
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 
 async function loadPlayersForLogin() {
-  const { data } = await db.from('players').select('*').order('slot');
-  players = data || [];
-  renderLoginList();
+  try {
+    const { data, error } = await db.from('players').select('*').order('slot');
+    if(error) throw error;
+    players = data || [];
+    renderLoginList();
+  } catch(e) {
+    console.error('loadPlayersForLogin failed:', e);
+    // Show error in login UI so user knows what happened
+    const sub = document.getElementById('loginSub');
+    if(sub) sub.textContent = 'Yhteysvirhe – tarkista internet ja päivitä sivu.';
+    const c = document.getElementById('loginPlayerList');
+    if(c) c.innerHTML = '<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">Tietokantaan ei saatu yhteyttä.</div>';
+  }
 }
 
 function renderLoginList() {
@@ -528,7 +538,7 @@ function updateHeaderUser() {
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 
-async function loadAll() {
+async function loadAll(attempt = 1) {
   setSyncState('syncing');
   try {
     const [pr, pred, act] = await Promise.all([
@@ -536,21 +546,22 @@ async function loadAll() {
       db.from('predictions').select('*'),
       db.from('actuals').select('*'),
     ]);
+
+    // If Supabase returned errors, throw so retry kicks in
+    if(pr.error) throw pr.error;
+
     players = pr.data || [];
     predictions = {};
     (pred.data||[]).forEach(p => { predictions[`${p.match_id}_${p.player_id}`] = p; });
 
-    // Map API actuals to our match IDs by matching team names
     actuals = {};
     const allMatches = Object.values(MATCHES).flat();
     (act.data||[]).forEach(a => {
       if(a.home_score === null || a.away_score === null) return;
-      // Direct match_id hit (manual entries)
       if(allMatches.find(m => m.id === a.match_id)) {
         actuals[a.match_id] = a;
         return;
       }
-      // Match by Finnish team names provided by Edge Function
       if(a.home_team && a.away_team) {
         const found = allMatches.find(m => m.home === a.home_team && m.away === a.away_team);
         if(found) actuals[found.id] = a;
@@ -560,7 +571,16 @@ async function loadAll() {
     setSyncState('ok');
     renderToday();
     renderPredictions();
-  } catch(e) { setSyncState('error'); }
+  } catch(e) {
+    console.error(`loadAll attempt ${attempt} failed:`, e);
+    if(attempt < 3) {
+      // Retry with backoff: 2s, 4s
+      setSyncState('syncing');
+      await new Promise(r => setTimeout(r, attempt * 2000));
+      return loadAll(attempt + 1);
+    }
+    setSyncState('error');
+  }
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
@@ -1014,16 +1034,34 @@ function refreshCurrentPage() {
 }
 
 async function init() {
-  await loadPlayersForLogin();
-  const savedId = localStorage.getItem('mm26_myId');
-  if(savedId && players.find(p=>p.id===savedId)) {
-    me = players.find(p=>p.id===savedId);
-    document.getElementById('loginOverlay').style.display='none';
-    updateHeaderUser();
-    await loadAll();
-    setupRealtime();
+  try {
+    await loadPlayersForLogin();
+  } catch(e) {
+    console.error('init: loadPlayersForLogin threw', e);
   }
-  // else: login overlay stays visible
+
+  const savedId = localStorage.getItem('mm26_myId');
+  if(savedId) {
+    const saved = players.find(p => p.id === savedId);
+    if(saved) {
+      // Known player – skip login overlay
+      me = saved;
+      document.getElementById('loginOverlay').style.display = 'none';
+      updateHeaderUser();
+      try {
+        await loadAll();
+        setupRealtime();
+      } catch(e) {
+        console.error('init: loadAll/realtime failed', e);
+        setSyncState('error');
+      }
+      return;
+    } else {
+      // Saved ID no longer in DB (e.g. DB was reset) – clear stale key
+      localStorage.removeItem('mm26_myId');
+    }
+  }
+  // Show login overlay – it's already visible by default
 }
 
 init();
