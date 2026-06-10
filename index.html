@@ -192,6 +192,7 @@
       <div>
         <div class="user-name" id="headerName"></div>
         <button class="switch-btn" onclick="showPage('admin', null)">muokkaa nimeä</button>
+        <button class="switch-btn" onclick="switchUser()" style="margin-left:8px">vaihda</button>
       </div>
       <span class="sync-dot" id="syncDot" style="margin-left:4px"></span>
     </div>
@@ -493,14 +494,24 @@ function showStep1() {
 async function joinAsNew() {
   const name = document.getElementById('newNameInput').value.trim();
   if(!name || name.length < 2) return;
-  if(players.length >= 20) { alert('Veikkauksessa on jo 20 pelaajaa!'); return; }
   setSyncState('syncing');
   try {
-    const slot = (players.map(p=>p.slot).sort().reverse()[0] || 0) + 1;
-    const { data, error } = await db.from('players').insert({name, slot}).select().single();
-    if(error) throw error;
-    me = { id: data.id, name: data.name, slot: data.slot };
-    players.push(me);
+    // If renaming a placeholder slot, update instead of insert
+    if(window._pendingSlotId) {
+      const slotId = window._pendingSlotId;
+      window._pendingSlotId = null;
+      const { error } = await db.from('players').update({name}).eq('id', slotId);
+      if(error) throw error;
+      me = players.find(p => p.id === slotId);
+      if(me) me.name = name;
+    } else {
+      if(players.length >= 20) { alert('Veikkauksessa on jo 20 pelaajaa!'); return; }
+      const slot = (players.map(p=>p.slot).sort().reverse()[0] || 0) + 1;
+      const { data, error } = await db.from('players').insert({name, slot}).select().single();
+      if(error) throw error;
+      me = { id: data.id, name: data.name, slot: data.slot };
+      players.push(me);
+    }
     localStorage.setItem('mm26_myId', me.id);
     document.getElementById('loginOverlay').style.display = 'none';
     updateHeaderUser();
@@ -513,6 +524,15 @@ function confirmLogin() {
   if(!selectedLoginId) return;
   me = players.find(p => p.id === selectedLoginId);
   if(!me) return;
+  // If name is placeholder, ask user to set a real name first
+  if(/^Pelaaja \d+$/.test(me.name)) {
+    document.getElementById('newNameInput').value = '';
+    document.getElementById('loginSub').textContent = 'Aseta nimesi';
+    showJoinForm();
+    // Override joinAsNew to update existing slot instead of creating new
+    window._pendingSlotId = me.id;
+    return;
+  }
   localStorage.setItem('mm26_myId', me.id);
   document.getElementById('loginOverlay').style.display = 'none';
   updateHeaderUser();
@@ -1057,8 +1077,10 @@ async function init() {
       }
       return;
     } else {
-      // Saved ID no longer in DB (e.g. DB was reset) – clear stale key
+      // Saved ID no longer in DB – clear stale key and show login
       localStorage.removeItem('mm26_myId');
+      const sub = document.getElementById('loginSub');
+      if(sub) sub.textContent = 'Valitse nimesi uudelleen';
     }
   }
   // Show login overlay – it's already visible by default
