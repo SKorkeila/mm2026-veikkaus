@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MM 2026 – Perheveikkaus</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --green: #1a7a4a; --green-light: #e8f5ee; --green-mid: #2e9e62;
@@ -251,8 +250,8 @@
 <script>
 const SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// db is initialised after Supabase library loads (see bottom of file)
+let db;
 
 // ko = UTC kickoff ISO string. Predictions lock at kickoff.
 const MATCHES = {
@@ -1093,7 +1092,11 @@ async function init() {
   // Show login overlay – it's already visible by default
 }
 
-document.addEventListener('DOMContentLoaded', init);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script>
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  init();
 </script>
 </body>
 </html>
