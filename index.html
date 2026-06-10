@@ -190,7 +190,7 @@
 <main>
   <div id="page-predict" class="page active">
     <h2>Omat veikkaukseni</h2>
-    <div class="info"><strong>Pisteet:</strong> Tarkka tulos = 3 p &nbsp;·&nbsp; Oikea voittaja/tasu = 1 p &nbsp;·&nbsp; Väärä = 0 p</div>
+    <div class="info"><strong>Pisteet:</strong> Oikea voittaja/tasapeli = 2 p &nbsp;·&nbsp; Tarkka tulos lisäksi = +1 p (max 3 p) &nbsp;·&nbsp; Väärä = 0 p</div>
     <div class="phase-tabs" id="predictPhaseTabs"></div>
     <div id="predictContent"><div class="loading">Ladataan…</div></div>
   </div>
@@ -523,7 +523,7 @@ function renderPredictions() {
       return `<span class="other-pill"><strong>${p.name.split(' ')[0]}</strong> ${op.home_score}–${op.away_score}</span>`;
     }).filter(Boolean).join('');
 
-    const ptsHtml = pts!==null ? `<span class="pts-badge pts-${pts}">${pts===3?'3 p ✓':pts===1?'1 p':'0 p'}</span>` : '';
+    const ptsHtml = pts!==null ? `<span class="pts-badge pts-${pts}">${pts===3?'3 p ✓ (tarkka)':pts===2?'2 p ✓':'0 p'}</span>` : '';
     const lockHtml = locked ? `<span style="font-size:11px;color:var(--text-muted);margin-left:auto">🔒 Lukittu</span>` : '';
 
     const inputStyle = locked ? 'opacity:0.5;pointer-events:none;background:#f0f0f0' : '';
@@ -629,10 +629,11 @@ function getPoints(matchId, playerId) {
   if(!act||act.home_score===null||act.away_score===null) return null;
   const pred=predictions[`${matchId}_${playerId}`];
   if(!pred||pred.home_score===null||pred.away_score===null) return null;
-  if(pred.home_score===act.home_score&&pred.away_score===act.away_score) return 3;
   const pw=pred.home_score>pred.away_score?'H':pred.home_score<pred.away_score?'A':'D';
   const aw=act.home_score>act.away_score?'H':act.home_score<act.away_score?'A':'D';
-  return pw===aw?1:0;
+  if(pw!==aw) return 0;
+  // Correct winner/draw = 2p, exact score adds 1p more
+  return pred.home_score===act.home_score&&pred.away_score===act.away_score ? 3 : 2;
 }
 
 function renderScores() {
@@ -645,7 +646,7 @@ function renderScores() {
   }).sort((a,b)=>b.total-a.total);
 
   let html=`<div class="scoreboard">
-    <div class="sb-head"><div></div><div>Pelaaja</div><div style="text-align:center">Pisteet</div><div style="text-align:center">Tarkka</div><div style="text-align:center">Voittaja</div></div>`;
+    <div class="sb-head"><div></div><div>Pelaaja</div><div style="text-align:center">Pisteet</div><div style="text-align:center">Tarkka (3p)</div><div style="text-align:center">Voittaja (2p)</div></div>`;
   stats.forEach((p,i)=>{
     const isMe=me&&p.id===me.id;
     html+=`<div class="sb-row ${i===0?'rank1':''} ${isMe?'me':''}">
@@ -658,7 +659,7 @@ function renderScores() {
   });
   html+='</div>';
   const played=all.filter(m=>actuals[m.id]&&actuals[m.id].home_score!==null).length;
-  html+=`<div class="info" style="margin-top:1rem">Kirjattuja otteluita: ${played} / ${all.length} &nbsp;·&nbsp; Tarkka = oikea tulos (3 p) &nbsp;·&nbsp; Voittaja = oikea voittaja/tasu (1 p)</div>`;
+  html+=`<div class="info" style="margin-top:1rem">Kirjattuja otteluita: ${played} / ${all.length} &nbsp;·&nbsp; Oikea voittaja/tasu = 2 p &nbsp;·&nbsp; Tarkka tulos = 3 p</div>`;
   document.getElementById('scoresContent').innerHTML=html;
 }
 
