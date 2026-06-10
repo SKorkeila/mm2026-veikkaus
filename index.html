@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MM 2026 – Perheveikkaus</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --green: #1a7a4a; --green-light: #e8f5ee; --green-mid: #2e9e62;
+    --gold: #c9922a; --gold-light: #fdf3e3;
+    --bg: #f7f8f6; --surface: #ffffff; --border: #e2e6e0;
+    --text: #1a1f18; --text-muted: #6b7369; --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Login overlay */
+  #loginOverlay {
+    position: fixed; inset: 0; background: var(--green);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 1.5rem;
+  }
+  .login-box {
+    background: white; border-radius: 16px; padding: 2rem 1.75rem;
+    max-width: 360px; width: 100%; text-align: center;
+  }
+  .login-ball { font-size: 48px; margin-bottom: 1rem; }
+  .login-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+  .login-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 1.75rem; }
+  .login-label { font-size: 13px; font-weight: 600; color: var(--text-muted); text-align: left; display: block; margin-bottom: 0.5rem; }
+  .player-btn-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
+  .player-btn {
+    padding: 13px 16px; border: 1.5px solid var(--border); border-radius: var(--radius);
+    background: var(--bg); font-size: 15px; font-weight: 500; color: var(--text);
+    cursor: pointer; text-align: left; transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .player-btn:hover { border-color: var(--green-mid); background: var(--green-light); color: var(--green); }
+  .player-btn.selected { border-color: var(--green); background: var(--green-light); color: var(--green); }
+  .player-btn .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--green-light); color: var(--green); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .player-btn.selected .avatar { background: var(--green); color: white; }
+  .btn-login { width: 100%; padding: 13px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; opacity: 0.4; pointer-events: none; transition: opacity 0.15s; }
+  .btn-login.ready { opacity: 1; pointer-events: auto; }
+
+  /* Header */
+  header { background: var(--green); color: white; }
+  .header-inner { max-width: 720px; margin: 0 auto; padding: 0.875rem 1.25rem; display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; flex-direction: column; }
+  .header-title { font-size: 17px; font-weight: 600; }
+  .header-sub { font-size: 11px; opacity: 0.65; margin-top: 1px; }
+  .header-user { display: flex; align-items: center; gap: 8px; }
+  .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.2); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .user-name { font-size: 13px; font-weight: 500; }
+  .switch-btn { font-size: 11px; opacity: 0.6; cursor: pointer; background: none; border: none; color: white; text-decoration: underline; padding: 0; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #6ee7a0; display: inline-block; }
+  .sync-dot.syncing { background: #fbbf24; animation: pulse 1s infinite; }
+  .sync-dot.error { background: #f87171; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+  nav { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .nav-inner { max-width: 720px; margin: 0 auto; display: flex; }
+  .nav-tab { flex: 1; padding: 13px 6px; font-size: 13px; font-weight: 500; text-align: center; cursor: pointer; color: var(--text-muted); border: none; background: none; border-bottom: 2px solid transparent; }
+  .nav-tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+  main { max-width: 720px; margin: 0 auto; padding: 1.25rem; }
+  .page { display: none; }
+  .page.active { display: block; }
+  h2 { font-size: 17px; font-weight: 600; margin-bottom: 1rem; }
+
+  .info { background: var(--green-light); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--green); margin-bottom: 1rem; line-height: 1.6; }
+  .phase-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .phase-tab { padding: 6px 13px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .phase-tab.active { background: var(--green-light); color: var(--green); border-color: var(--green-mid); }
+  .group-tag { display: inline-block; background: var(--green-light); color: var(--green); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; margin: 0.75rem 0 0.5rem; }
+
+  .match { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.75rem; overflow: hidden; }
+  .match-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 1rem; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .match-teams { font-size: 14px; font-weight: 600; }
+  .match-date { font-size: 12px; color: var(--text-muted); }
+  .match-body { padding: 0.875rem 1rem; }
+
+  /* My prediction row */
+  .my-pred { display: flex; align-items: center; gap: 10px; }
+  .score-box { display: flex; align-items: center; gap: 6px; }
+  .score-box input { width: 46px; padding: 8px; text-align: center; font-size: 16px; font-weight: 600; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .score-box input:focus { outline: none; border-color: var(--green-mid); background: white; }
+  .score-sep { color: var(--text-muted); font-size: 16px; font-weight: 300; }
+  .others-preds { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+  .other-pill { font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; color: var(--text-muted); }
+  .other-pill strong { color: var(--text); }
+  .pts-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; margin-left: auto; }
+  .pts-3 { background: #dcfce7; color: #166534; }
+  .pts-1 { background: #fef9c3; color: #854d0e; }
+  .pts-0 { background: #fee2e2; color: #991b1b; }
+
+  /* Results */
+  .actual-inputs { display: flex; align-items: center; gap: 8px; }
+  .actual-inputs input { width: 46px; padding: 8px; text-align: center; font-size: 16px; font-weight: 600; border: 1.5px solid #fbbf24; border-radius: var(--radius-sm); background: #fffbeb; color: var(--text); }
+  .actual-inputs input:focus { outline: none; border-color: var(--gold); background: white; }
+
+  /* Scoreboard */
+  .scoreboard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .sb-head { display: grid; grid-template-columns: 36px 1fr 56px 44px 44px; gap: 8px; padding: 10px 1rem; background: var(--bg); font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); }
+  .sb-row { display: grid; grid-template-columns: 36px 1fr 56px 44px 44px; gap: 8px; padding: 12px 1rem; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.15s; }
+  .sb-row:last-child { border-bottom: none; }
+  .sb-row.me { background: var(--green-light); }
+  .sb-row.rank1 { background: var(--gold-light); }
+  .sb-row.rank1.me { background: linear-gradient(135deg, var(--gold-light), var(--green-light)); }
+  .sb-rank { font-size: 16px; text-align: center; }
+  .sb-name { font-size: 15px; font-weight: 600; }
+  .sb-me-tag { font-size: 10px; font-weight: 600; background: var(--green); color: white; padding: 1px 6px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+  .sb-pts { font-size: 20px; font-weight: 700; color: var(--green); text-align: center; }
+  .sb-sub { font-size: 13px; color: var(--text-muted); text-align: center; }
+  .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+
+  /* Admin tab */
+  .player-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+  .player-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .player-field input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg); color: var(--text); }
+  .player-field input:focus { outline: none; border-color: var(--green-mid); }
+  .btn { padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
+  .btn-green { background: var(--green); color: white; }
+  .saved-msg { font-size: 13px; color: var(--green-mid); margin-top: 0.75rem; display: none; }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-ball">⚽</div>
+    <div class="login-title">MM 2026 Veikkaus</div>
+    <div class="login-sub" id="loginSub">Kuka sinä olet?</div>
+
+    <!-- Step 1: existing players to pick from -->
+    <div id="loginStep1">
+      <div class="player-btn-grid" id="loginPlayerList"></div>
+      <div id="loginJoinRow" style="display:none;margin-top:0.5rem">
+        <button class="player-btn" style="justify-content:center;color:var(--green);border-color:var(--green-mid)" onclick="showJoinForm()">
+          <div class="avatar" style="background:var(--green);color:white">+</div>
+          <span>Liity mukaan uutena pelaajana</span>
+        </button>
+      </div>
+      <button class="btn-login" id="loginBtn" onclick="confirmLogin()" style="margin-top:1rem">Aloita veikkaaminen</button>
+    </div>
+
+    <!-- Step 2: new player name entry -->
+    <div id="loginStep2" style="display:none">
+      <div style="text-align:left;margin-bottom:0.5rem">
+        <label class="login-label">Kirjoita nimesi</label>
+        <input type="text" id="newNameInput" placeholder="Etunimi Sukunimi"
+          style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;background:#f7f8f6;color:#1a1f18;margin-bottom:0.75rem"
+          oninput="document.getElementById('joinBtn').classList.toggle('ready', this.value.trim().length>1)"
+          onkeydown="if(event.key==='Enter')joinAsNew()">
+      </div>
+      <button class="btn-login ready" id="joinBtn" onclick="joinAsNew()">Liity mukaan</button>
+      <button onclick="showStep1()" style="display:block;width:100%;margin-top:0.75rem;background:none;border:none;font-size:13px;color:var(--text-muted);cursor:pointer">← Takaisin</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="header-title">⚽ MM 2026 – Perheveikkaus</div>
+      <div class="header-sub">FIFA World Cup · USA / Kanada / Meksiko</div>
+    </div>
+    <div class="header-user">
+      <div class="user-avatar" id="headerAvatar"></div>
+      <div>
+        <div class="user-name" id="headerName"></div>
+        <button class="switch-btn" onclick="switchUser()">vaihda</button>
+      </div>
+      <span class="sync-dot" id="syncDot" style="margin-left:4px"></span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="nav-inner">
+    <button class="nav-tab active" onclick="showPage('predict',this)">Veikkaukset</button>
+    <button class="nav-tab" onclick="showPage('results',this)">Tulokset</button>
+    <button class="nav-tab" onclick="showPage('scores',this)">Pisteet</button>
+    <button class="nav-tab" onclick="showPage('admin',this)">Hallinta</button>
+  </div>
+</nav>
+
+<main>
+  <div id="page-predict" class="page active">
+    <h2>Omat veikkaukseni</h2>
+    <div class="info"><strong>Pisteet:</strong> Tarkka tulos = 3 p &nbsp;·&nbsp; Oikea voittaja/tasu = 1 p &nbsp;·&nbsp; Väärä = 0 p</div>
+    <div class="phase-tabs" id="predictPhaseTabs"></div>
+    <div id="predictContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-results" class="page">
+    <h2>Todelliset tulokset</h2>
+    <div class="info">Kirjaa otteluiden todelliset lopputulokset. Pisteet lasketaan automaattisesti kaikille.</div>
+    <div class="phase-tabs" id="resultPhaseTabs"></div>
+    <div id="resultsContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-scores" class="page">
+    <h2>Pistetaulukko</h2>
+    <div id="scoresContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-admin" class="page">
+    <h2>Pelaajien hallinta</h2>
+    <div class="info">Lisää tai muuta perheen pelaajien nimet tässä. Nimet näkyvät kaikille heti.</div>
+    <div class="player-grid" id="playerGrid"></div>
+    <button class="btn btn-green" onclick="savePlayers()">Tallenna nimet</button>
+    <div class="saved-msg" id="savedMsg">✓ Tallennettu!</div>
+  </div>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MATCHES = {
+  group:[
+    {id:'A1',home:'Meksiko',away:'Etelä-Afrikka',date:'11.6.',group:'A'},
+    {id:'A2',home:'Etelä-Korea',away:'Tshekki',date:'11.6.',group:'A'},
+    {id:'A3',home:'Meksiko',away:'Tshekki',date:'15.6.',group:'A'},
+    {id:'A4',home:'Etelä-Afrikka',away:'Etelä-Korea',date:'15.6.',group:'A'},
+    {id:'A5',home:'Etelä-Korea',away:'Meksiko',date:'19.6.',group:'A'},
+    {id:'A6',home:'Tshekki',away:'Etelä-Afrikka',date:'19.6.',group:'A'},
+    {id:'B1',home:'Kanada',away:'Bosnia-Hertsegovina',date:'12.6.',group:'B'},
+    {id:'B2',home:'Hollanti',away:'Ecuador',date:'12.6.',group:'B'},
+    {id:'B3',home:'Kanada',away:'Ecuador',date:'16.6.',group:'B'},
+    {id:'B4',home:'Bosnia-Hertsegovina',away:'Hollanti',date:'16.6.',group:'B'},
+    {id:'B5',home:'Ecuador',away:'Bosnia-Hertsegovina',date:'20.6.',group:'B'},
+    {id:'B6',home:'Hollanti',away:'Kanada',date:'20.6.',group:'B'},
+    {id:'C1',home:'Brasilia',away:'Kroatia',date:'13.6.',group:'C'},
+    {id:'C2',home:'Japani',away:'Chile',date:'13.6.',group:'C'},
+    {id:'C3',home:'Brasilia',away:'Chile',date:'17.6.',group:'C'},
+    {id:'C4',home:'Kroatia',away:'Japani',date:'17.6.',group:'C'},
+    {id:'C5',home:'Chile',away:'Kroatia',date:'21.6.',group:'C'},
+    {id:'C6',home:'Japani',away:'Brasilia',date:'21.6.',group:'C'},
+    {id:'D1',home:'USA',away:'Paraguay',date:'12.6.',group:'D'},
+    {id:'D2',home:'Saksa',away:'Kolumbia',date:'14.6.',group:'D'},
+    {id:'D3',home:'USA',away:'Kolumbia',date:'18.6.',group:'D'},
+    {id:'D4',home:'Paraguay',away:'Saksa',date:'18.6.',group:'D'},
+    {id:'D5',home:'Kolumbia',away:'Paraguay',date:'22.6.',group:'D'},
+    {id:'D6',home:'Saksa',away:'USA',date:'22.6.',group:'D'},
+    {id:'E1',home:'Englanti',away:'Kenia',date:'13.6.',group:'E'},
+    {id:'E2',home:'Italia',away:'Costa Rica',date:'15.6.',group:'E'},
+    {id:'E3',home:'Englanti',away:'Costa Rica',date:'19.6.',group:'E'},
+    {id:'E4',home:'Kenia',away:'Italia',date:'19.6.',group:'E'},
+    {id:'E5',home:'Costa Rica',away:'Kenia',date:'23.6.',group:'E'},
+    {id:'E6',home:'Italia',away:'Englanti',date:'23.6.',group:'E'},
+    {id:'F1',home:'Portugal',away:'Marokko',date:'13.6.',group:'F'},
+    {id:'F2',home:'Ranska',away:'Senegal',date:'16.6.',group:'F'},
+    {id:'F3',home:'Portugal',away:'Senegal',date:'20.6.',group:'F'},
+    {id:'F4',home:'Marokko',away:'Ranska',date:'20.6.',group:'F'},
+    {id:'F5',home:'Senegal',away:'Marokko',date:'24.6.',group:'F'},
+    {id:'F6',home:'Ranska',away:'Portugal',date:'24.6.',group:'F'},
+    {id:'G1',home:'Belgia',away:'Egypti',date:'15.6.',group:'G'},
+    {id:'G2',home:'Iran',away:'Uusi-Seelanti',date:'15.6.',group:'G'},
+    {id:'G3',home:'Belgia',away:'Uusi-Seelanti',date:'19.6.',group:'G'},
+    {id:'G4',home:'Egypti',away:'Iran',date:'19.6.',group:'G'},
+    {id:'G5',home:'Uusi-Seelanti',away:'Egypti',date:'23.6.',group:'G'},
+    {id:'G6',home:'Iran',away:'Belgia',date:'23.6.',group:'G'},
+    {id:'H1',home:'Espanja',away:'Kap Verde',date:'15.6.',group:'H'},
+    {id:'H2',home:'Saudi-Arabia',away:'Uruguay',date:'15.6.',group:'H'},
+    {id:'H3',home:'Espanja',away:'Uruguay',date:'19.6.',group:'H'},
+    {id:'H4',home:'Kap Verde',away:'Saudi-Arabia',date:'19.6.',group:'H'},
+    {id:'H5',home:'Uruguay',away:'Kap Verde',date:'23.6.',group:'H'},
+    {id:'H6',home:'Saudi-Arabia',away:'Espanja',date:'23.6.',group:'H'},
+  ],
+  r32:[
+    {id:'R32_1',home:'1A',away:'3. sija',date:'27.6.',group:'32 parhaan kierros'},
+    {id:'R32_2',home:'1B',away:'2A',date:'27.6.',group:'32 parhaan kierros'},
+    {id:'R32_3',home:'1C',away:'3. sija',date:'28.6.',group:'32 parhaan kierros'},
+    {id:'R32_4',home:'1D',away:'2C',date:'28.6.',group:'32 parhaan kierros'},
+    {id:'R32_5',home:'1E',away:'2D',date:'29.6.',group:'32 parhaan kierros'},
+    {id:'R32_6',home:'1F',away:'2E',date:'29.6.',group:'32 parhaan kierros'},
+    {id:'R32_7',home:'1G',away:'2F',date:'30.6.',group:'32 parhaan kierros'},
+    {id:'R32_8',home:'1H',away:'2G',date:'30.6.',group:'32 parhaan kierros'},
+  ],
+  r16:[
+    {id:'R16_1',home:'V R32-1',away:'V R32-2',date:'3.7.',group:'16 parhaan kierros'},
+    {id:'R16_2',home:'V R32-3',away:'V R32-4',date:'3.7.',group:'16 parhaan kierros'},
+    {id:'R16_3',home:'V R32-5',away:'V R32-6',date:'4.7.',group:'16 parhaan kierros'},
+    {id:'R16_4',home:'V R32-7',away:'V R32-8',date:'4.7.',group:'16 parhaan kierros'},
+  ],
+  qf:[
+    {id:'QF1',home:'V R16-1',away:'V R16-2',date:'7.7.',group:'Neljännesvälierät'},
+    {id:'QF2',home:'V R16-3',away:'V R16-4',date:'8.7.',group:'Neljännesvälierät'},
+    {id:'QF3',home:'V R16-5',away:'V R16-6',date:'9.7.',group:'Neljännesvälierät'},
+    {id:'QF4',home:'V R16-7',away:'V R16-8',date:'10.7.',group:'Neljännesvälierät'},
+  ],
+  sf:[
+    {id:'SF1',home:'V QF1',away:'V QF2',date:'14.7.',group:'Välierät'},
+    {id:'SF2',home:'V QF3',away:'V QF4',date:'15.7.',group:'Välierät'},
+  ],
+  final:[
+    {id:'THIRD',home:'H SF1',away:'H SF2',date:'18.7.',group:'Pronssiottelu'},
+    {id:'FINAL',home:'V SF1',away:'V SF2',date:'19.7.',group:'Finaali'},
+  ]
+};
+
+const PHASES = [
+  {key:'group',label:'Alkulohkot'},{key:'r32',label:'32 parasta'},
+  {key:'r16',label:'16 parasta'},{key:'qf',label:'Neljännesvälierät'},
+  {key:'sf',label:'Välierät'},{key:'final',label:'Finaali'},
+];
+
+let players = [];
+let predictions = {};
+let actuals = {};
+let currentPredPhase = 'group';
+let currentResultPhase = 'group';
+let me = null; // currently logged-in player object
+let selectedLoginId = null;
+
+function setSyncState(s) {
+  const d = document.getElementById('syncDot');
+  d.className = 'sync-dot' + (s==='syncing'?' syncing':s==='error'?' error':'');
+}
+
+function initials(name) {
+  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+
+async function loadPlayersForLogin() {
+  const { data } = await db.from('players').select('*').order('slot');
+  players = data || [];
+  renderLoginList();
+}
+
+function renderLoginList() {
+  const c = document.getElementById('loginPlayerList');
+  const joinRow = document.getElementById('loginJoinRow');
+  const sub = document.getElementById('loginSub');
+
+  if(!players.length) {
+    c.innerHTML = '';
+    sub.textContent = 'Ensimmäisenä mukaan?';
+    joinRow.style.display = 'block';
+    return;
+  }
+  sub.textContent = 'Kuka sinä olet?';
+  c.innerHTML = players.map(p => `
+    <button class="player-btn" id="lb_${p.id}" onclick="selectLoginPlayer('${p.id}')">
+      <div class="avatar">${initials(p.name)}</div>
+      <span>${p.name}</span>
+    </button>`).join('');
+  // show "join as new" only if there's still room
+  joinRow.style.display = players.length < 5 ? 'block' : 'none';
+}
+
+function selectLoginPlayer(id) {
+  selectedLoginId = id;
+  document.querySelectorAll('.player-btn').forEach(b => b.classList.remove('selected'));
+  const btn = document.getElementById('lb_'+id);
+  if(btn) btn.classList.add('selected');
+  document.getElementById('loginBtn').classList.add('ready');
+}
+
+function showJoinForm() {
+  document.getElementById('loginStep1').style.display = 'none';
+  document.getElementById('loginStep2').style.display = 'block';
+  document.getElementById('loginSub').textContent = 'Liity mukaan';
+  setTimeout(() => document.getElementById('newNameInput').focus(), 50);
+}
+
+function showStep1() {
+  document.getElementById('loginStep2').style.display = 'none';
+  document.getElementById('loginStep1').style.display = 'block';
+  document.getElementById('loginSub').textContent = players.length ? 'Kuka sinä olet?' : 'Ensimmäisenä mukaan?';
+}
+
+async function joinAsNew() {
+  const name = document.getElementById('newNameInput').value.trim();
+  if(!name || name.length < 2) return;
+  if(players.length >= 5) { alert('Veikkauksessa on jo 5 pelaajaa!'); return; }
+  setSyncState('syncing');
+  try {
+    const slot = (players.map(p=>p.slot).sort().reverse()[0] || 0) + 1;
+    const { data, error } = await db.from('players').insert({name, slot}).select().single();
+    if(error) throw error;
+    me = { id: data.id, name: data.name, slot: data.slot };
+    players.push(me);
+    localStorage.setItem('mm26_myId', me.id);
+    document.getElementById('loginOverlay').style.display = 'none';
+    updateHeaderUser();
+    loadAll();
+  } catch(e) { setSyncState('error'); alert('Liittyminen epäonnistui, yritä uudelleen.'); }
+}
+
+function confirmLogin() {
+  if(!selectedLoginId) return;
+  me = players.find(p => p.id === selectedLoginId);
+  if(!me) return;
+  localStorage.setItem('mm26_myId', me.id);
+  document.getElementById('loginOverlay').style.display = 'none';
+  updateHeaderUser();
+  loadAll();
+}
+
+function switchUser() {
+  localStorage.removeItem('mm26_myId');
+  me = null;
+  selectedLoginId = null;
+  document.getElementById('loginStep1').style.display = 'block';
+  document.getElementById('loginStep2').style.display = 'none';
+  document.getElementById('loginBtn').classList.remove('ready');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  loadPlayersForLogin();
+}
+
+function updateHeaderUser() {
+  if(!me) return;
+  document.getElementById('headerAvatar').textContent = initials(me.name);
+  document.getElementById('headerName').textContent = me.name;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+async function loadAll() {
+  setSyncState('syncing');
+  try {
+    const [pr, pred, act] = await Promise.all([
+      db.from('players').select('*').order('slot'),
+      db.from('predictions').select('*'),
+      db.from('actuals').select('*'),
+    ]);
+    players = pr.data || [];
+    predictions = {};
+    (pred.data||[]).forEach(p => { predictions[`${p.match_id}_${p.player_id}`] = p; });
+    actuals = {};
+    (act.data||[]).forEach(a => { actuals[a.match_id] = a; });
+    setSyncState('ok');
+    renderAdminSetup();
+    renderPredictions();
+  } catch(e) { setSyncState('error'); }
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='predict') renderPredictions();
+  if(name==='results') renderResults();
+  if(name==='scores') renderScores();
+}
+
+function buildPhaseTabs(cid, cur, fn) {
+  document.getElementById(cid).innerHTML = PHASES.map(p=>
+    `<button class="phase-tab ${p.key===cur?'active':''}" onclick="${fn}('${p.key}')">${p.label}</button>`
+  ).join('');
+}
+
+// ── PREDICTIONS ───────────────────────────────────────────────────────────────
+
+function setPredPhase(ph) { currentPredPhase=ph; renderPredictions(); }
+
+function renderPredictions() {
+  buildPhaseTabs('predictPhaseTabs', currentPredPhase, 'setPredPhase');
+  if(!me) return;
+  const matches = MATCHES[currentPredPhase]||[];
+  const c = document.getElementById('predictContent');
+  let html='', lastGroup='';
+  matches.forEach(m => {
+    if(m.group!==lastGroup) { html+=`<div class="group-tag">Lohko ${m.group}</div>`; lastGroup=m.group; }
+    const myPred = predictions[`${m.id}_${me.id}`];
+    const act = actuals[m.id];
+    const pts = getPoints(m.id, me.id);
+    // others' predictions
+    const otherPills = players.filter(p=>p.id!==me.id).map(p=>{
+      const op = predictions[`${m.id}_${p.id}`];
+      if(!op || op.home_score===null) return '';
+      return `<span class="other-pill"><strong>${p.name.split(' ')[0]}</strong> ${op.home_score}–${op.away_score}</span>`;
+    }).filter(Boolean).join('');
+
+    const ptsHtml = pts!==null ? `<span class="pts-badge pts-${pts}">${pts===3?'3 p ✓':pts===1?'1 p':'0 p'}</span>` : '';
+
+    html += `<div class="match">
+      <div class="match-head">
+        <span class="match-teams">${m.home} – ${m.away}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${act&&act.home_score!==null?`<span style="font-size:12px;font-weight:700;color:var(--text-muted)">${act.home_score}–${act.away_score}</span>`:''}
+          <span class="match-date">${m.date}</span>
+        </div>
+      </div>
+      <div class="match-body">
+        <div class="my-pred">
+          <div class="score-box">
+            <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?" 
+              onchange="savePred('${m.id}','home',this.value)">
+            <span class="score-sep">–</span>
+            <input type="number" min="0" max="20" value="${myPred&&myPred.away_score!==null?myPred.away_score:''}" placeholder="?"
+              onchange="savePred('${m.id}','away',this.value)">
+          </div>
+          ${ptsHtml}
+        </div>
+        ${otherPills?`<div class="others-preds">${otherPills}</div>`:''}
+      </div>
+    </div>`;
+  });
+  c.innerHTML = html || '<div class="loading">Ei otteluita.</div>';
+}
+
+async function savePred(matchId, side, val) {
+  if(!me) return;
+  setSyncState('syncing');
+  const key=`${matchId}_${me.id}`;
+  if(!predictions[key]) predictions[key]={match_id:matchId,player_id:me.id,home_score:null,away_score:null};
+  predictions[key][side==='home'?'home_score':'away_score'] = val===''?null:parseInt(val);
+  try {
+    await db.from('predictions').upsert({
+      match_id:matchId, player_id:me.id,
+      home_score:predictions[key].home_score,
+      away_score:predictions[key].away_score,
+      updated_at:new Date().toISOString()
+    },{onConflict:'player_id,match_id'});
+    setSyncState('ok');
+  } catch(e){setSyncState('error');}
+}
+
+// ── RESULTS ───────────────────────────────────────────────────────────────────
+
+function setResultPhase(ph) { currentResultPhase=ph; renderResults(); }
+
+function renderResults() {
+  buildPhaseTabs('resultPhaseTabs', currentResultPhase, 'setResultPhase');
+  const matches = MATCHES[currentResultPhase]||[];
+  const c = document.getElementById('resultsContent');
+  let html='', lastGroup='';
+  matches.forEach(m => {
+    if(m.group!==lastGroup){html+=`<div class="group-tag">Lohko ${m.group}</div>`;lastGroup=m.group;}
+    const act=actuals[m.id];
+    html+=`<div class="match">
+      <div class="match-head"><span class="match-teams">${m.home} – ${m.away}</span><span class="match-date">${m.date}</span></div>
+      <div class="match-body">
+        <div class="actual-inputs">
+          <input type="number" min="0" max="20" value="${act&&act.home_score!==null?act.home_score:''}" placeholder="0"
+            onchange="saveActual('${m.id}','home',this.value)">
+          <span class="score-sep">–</span>
+          <input type="number" min="0" max="20" value="${act&&act.away_score!==null?act.away_score:''}" placeholder="0"
+            onchange="saveActual('${m.id}','away',this.value)">
+        </div>
+      </div>
+    </div>`;
+  });
+  c.innerHTML = html||'<div class="loading">Ei otteluita.</div>';
+}
+
+async function saveActual(matchId, side, val) {
+  setSyncState('syncing');
+  if(!actuals[matchId]) actuals[matchId]={match_id:matchId,home_score:null,away_score:null};
+  actuals[matchId][side==='home'?'home_score':'away_score']=val===''?null:parseInt(val);
+  try {
+    await db.from('actuals').upsert({
+      match_id:matchId,
+      home_score:actuals[matchId].home_score,
+      away_score:actuals[matchId].away_score,
+      updated_at:new Date().toISOString()
+    },{onConflict:'match_id'});
+    setSyncState('ok');
+  } catch(e){setSyncState('error');}
+}
+
+// ── SCORES ────────────────────────────────────────────────────────────────────
+
+function getPoints(matchId, playerId) {
+  const act=actuals[matchId];
+  if(!act||act.home_score===null||act.away_score===null) return null;
+  const pred=predictions[`${matchId}_${playerId}`];
+  if(!pred||pred.home_score===null||pred.away_score===null) return null;
+  if(pred.home_score===act.home_score&&pred.away_score===act.away_score) return 3;
+  const pw=pred.home_score>pred.away_score?'H':pred.home_score<pred.away_score?'A':'D';
+  const aw=act.home_score>act.away_score?'H':act.home_score<act.away_score?'A':'D';
+  return pw===aw?1:0;
+}
+
+function renderScores() {
+  const all=Object.values(MATCHES).flat();
+  const medals=['🥇','🥈','🥉','4.','5.'];
+  const stats=players.map(p=>{
+    let total=0,exact=0,winner=0,played=0;
+    all.forEach(m=>{const pts=getPoints(m.id,p.id);if(pts===null)return;played++;total+=pts;if(pts===3)exact++;if(pts===1)winner++;});
+    return{...p,total,exact,winner,played};
+  }).sort((a,b)=>b.total-a.total);
+
+  let html=`<div class="scoreboard">
+    <div class="sb-head"><div></div><div>Pelaaja</div><div style="text-align:center">Pisteet</div><div style="text-align:center">Tarkka</div><div style="text-align:center">Voittaja</div></div>`;
+  stats.forEach((p,i)=>{
+    const isMe=me&&p.id===me.id;
+    html+=`<div class="sb-row ${i===0?'rank1':''} ${isMe?'me':''}">
+      <div class="sb-rank">${medals[i]||''}</div>
+      <div class="sb-name">${p.name}${isMe?'<span class="sb-me-tag">sinä</span>':''}</div>
+      <div class="sb-pts">${p.total}</div>
+      <div class="sb-sub">${p.exact}</div>
+      <div class="sb-sub">${p.winner}</div>
+    </div>`;
+  });
+  html+='</div>';
+  const played=all.filter(m=>actuals[m.id]&&actuals[m.id].home_score!==null).length;
+  html+=`<div class="info" style="margin-top:1rem">Kirjattuja otteluita: ${played} / ${all.length} &nbsp;·&nbsp; Tarkka = oikea tulos (3 p) &nbsp;·&nbsp; Voittaja = oikea voittaja/tasu (1 p)</div>`;
+  document.getElementById('scoresContent').innerHTML=html;
+}
+
+// ── ADMIN ─────────────────────────────────────────────────────────────────────
+
+function renderAdminSetup() {
+  const g=document.getElementById('playerGrid');
+  g.innerHTML='';
+  for(let i=1;i<=5;i++){
+    const p=players.find(x=>x.slot===i);
+    g.innerHTML+=`<div class="player-field"><label>Pelaaja ${i}</label><input type="text" id="pname${i}" value="${p?p.name:''}" placeholder="Nimi"></div>`;
+  }
+}
+
+async function savePlayers() {
+  setSyncState('syncing');
+  try {
+    for(let i=1;i<=5;i++){
+      const name=document.getElementById('pname'+i).value.trim()||`Pelaaja ${i}`;
+      const existing=players.find(x=>x.slot===i);
+      if(existing){
+        await db.from('players').update({name}).eq('id',existing.id);
+        existing.name=name;
+      } else {
+        const {data}=await db.from('players').insert({name,slot:i}).select().single();
+        if(data) players.push({id:data.id,name:data.name,slot:data.slot});
+      }
+    }
+    setSyncState('ok');
+    const msg=document.getElementById('savedMsg'); msg.style.display='block';
+    setTimeout(()=>msg.style.display='none',3000);
+    // update login list too in case overlay reopens
+    renderLoginList();
+  } catch(e){setSyncState('error');}
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  await loadPlayersForLogin();
+  const savedId = localStorage.getItem('mm26_myId');
+  if(savedId && players.find(p=>p.id===savedId)) {
+    me = players.find(p=>p.id===savedId);
+    document.getElementById('loginOverlay').style.display='none';
+    updateHeaderUser();
+    loadAll();
+  }
+  // else: login overlay stays visible
+}
+
+init();
+</script>
+</body>
+</html>
