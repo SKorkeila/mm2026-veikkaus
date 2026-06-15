@@ -248,10 +248,10 @@
 </main>
 
 <script>
-const SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
+var SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
 // db is initialised after Supabase library loads (see bottom of file)
-let db;
+var db;
 
 // ko = UTC kickoff ISO string. Predictions lock at kickoff.
 const MATCHES = {
@@ -268,78 +268,78 @@ const MATCHES = {
     {id:'B2',home:'Qatar',away:'Sveitsi',date:'13.6.',group:'B',ko:'2026-06-13T19:00Z'},
     {id:'B3',home:'Sveitsi',away:'Bosnia-Herts.',date:'18.6.',group:'B',ko:'2026-06-18T19:00Z'},
     {id:'B4',home:'Kanada',away:'Qatar',date:'18.6.',group:'B',ko:'2026-06-18T22:00Z'},
-    {id:'B5',home:'Sveitsi',away:'Kanada',date:'24.6.',group:'B',ko:'2026-06-24T19:00Z'},
-    {id:'B6',home:'Bosnia-Herts.',away:'Qatar',date:'24.6.',group:'B',ko:'2026-06-24T19:00Z'},
+    {id:'B5',home:'Sveitsi',away:'Kanada',date:'24.6.',group:'B',ko:'2026-06-25T19:00Z'},
+    {id:'B6',home:'Bosnia-Herts.',away:'Qatar',date:'24.6.',group:'B',ko:'2026-06-25T19:00Z'},
     // Lohko C: Brasilia, Marokko, Haiti, Skotlanti
     {id:'C1',home:'Brasilia',away:'Marokko',date:'13.6.',group:'C',ko:'2026-06-13T22:00Z'},
     {id:'C2',home:'Haiti',away:'Skotlanti',date:'14.6.',group:'C',ko:'2026-06-14T01:00Z'},
     {id:'C3',home:'Skotlanti',away:'Marokko',date:'19.6.',group:'C',ko:'2026-06-19T22:00Z'},
     {id:'C4',home:'Brasilia',away:'Haiti',date:'20.6.',group:'C',ko:'2026-06-20T00:30Z'},
-    {id:'C5',home:'Skotlanti',away:'Brasilia',date:'24.6.',group:'C',ko:'2026-06-24T22:00Z'},
-    {id:'C6',home:'Marokko',away:'Haiti',date:'24.6.',group:'C',ko:'2026-06-24T22:00Z'},
+    {id:'C5',home:'Skotlanti',away:'Brasilia',date:'24.6.',group:'C',ko:'2026-06-26T01:00Z'},
+    {id:'C6',home:'Marokko',away:'Haiti',date:'24.6.',group:'C',ko:'2026-06-26T01:00Z'},
     // Lohko D: USA, Paraguay, Australia, Turkki
     {id:'D1',home:'USA',away:'Paraguay',date:'13.6.',group:'D',ko:'2026-06-13T01:00Z'},
-    {id:'D2',home:'Australia',away:'Turkki',date:'14.6.',group:'D',ko:'2026-06-14T04:00Z'},
+    {id:'D2',home:'Australia',away:'Turkki',date:'14.6.',group:'D',ko:'2026-06-14T16:00Z'},
     {id:'D3',home:'USA',away:'Australia',date:'19.6.',group:'D',ko:'2026-06-19T19:00Z'},
     {id:'D4',home:'Turkki',away:'Paraguay',date:'20.6.',group:'D',ko:'2026-06-20T03:00Z'},
     {id:'D5',home:'Turkki',away:'USA',date:'26.6.',group:'D',ko:'2026-06-26T02:00Z'},
     {id:'D6',home:'Paraguay',away:'Australia',date:'26.6.',group:'D',ko:'2026-06-26T02:00Z'},
     // Lohko E: Saksa, Curaçao, Norsunluurannikko, Ecuador
     {id:'E1',home:'Saksa',away:'Curaçao',date:'14.6.',group:'E',ko:'2026-06-14T17:00Z'},
-    {id:'E2',home:'Norsunluurannikko',away:'Ecuador',date:'15.6.',group:'E',ko:'2026-06-15T00:00Z'},
+    {id:'E2',home:'Norsunluurannikko',away:'Ecuador',date:'15.6.',group:'E',ko:'2026-06-14T23:00Z'},
     {id:'E3',home:'Saksa',away:'Norsunluurannikko',date:'20.6.',group:'E',ko:'2026-06-20T20:00Z'},
     {id:'E4',home:'Ecuador',away:'Curaçao',date:'21.6.',group:'E',ko:'2026-06-21T00:00Z'},
-    {id:'E5',home:'Ecuador',away:'Saksa',date:'25.6.',group:'E',ko:'2026-06-25T20:00Z'},
-    {id:'E6',home:'Curaçao',away:'Norsunluurannikko',date:'25.6.',group:'E',ko:'2026-06-25T20:00Z'},
+    {id:'E5',home:'Ecuador',away:'Saksa',date:'25.6.',group:'E',ko:'2026-06-26T20:00Z'},
+    {id:'E6',home:'Curaçao',away:'Norsunluurannikko',date:'25.6.',group:'E',ko:'2026-06-26T20:00Z'},
     // Lohko F: Hollanti, Japani, Tunisia, Ruotsi
     {id:'F1',home:'Hollanti',away:'Japani',date:'14.6.',group:'F',ko:'2026-06-14T20:00Z'},
-    {id:'F2',home:'Tunisia',away:'Ruotsi',date:'15.6.',group:'F',ko:'2026-06-15T17:00Z'},
+    {id:'F2',home:'Tunisia',away:'Ruotsi',date:'15.6.',group:'F',ko:'2026-06-15T02:00Z'},
     {id:'F3',home:'Hollanti',away:'Ruotsi',date:'20.6.',group:'F',ko:'2026-06-20T17:00Z'},
     {id:'F4',home:'Tunisia',away:'Japani',date:'21.6.',group:'F',ko:'2026-06-21T04:00Z'},
-    {id:'F5',home:'Japani',away:'Ruotsi',date:'25.6.',group:'F',ko:'2026-06-25T23:00Z'},
-    {id:'F6',home:'Tunisia',away:'Hollanti',date:'25.6.',group:'F',ko:'2026-06-25T23:00Z'},
+    {id:'F5',home:'Japani',away:'Ruotsi',date:'25.6.',group:'F',ko:'2026-06-26T23:00Z'},
+    {id:'F6',home:'Tunisia',away:'Hollanti',date:'25.6.',group:'F',ko:'2026-06-26T23:00Z'},
     // Lohko G: Belgia, Egypti, Iran, Uusi-Seelanti
-    {id:'G1',home:'Belgia',away:'Egypti',date:'15.6.',group:'G',ko:'2026-06-15T22:00Z'},
+    {id:'G1',home:'Belgia',away:'Egypti',date:'15.6.',group:'G',ko:'2026-06-15T19:00Z'},
     {id:'G2',home:'Iran',away:'Uusi-Seelanti',date:'16.6.',group:'G',ko:'2026-06-16T01:00Z'},
-    {id:'G3',home:'Belgia',away:'Uusi-Seelanti',date:'20.6.',group:'G',ko:'2026-06-20T22:00Z'},
-    {id:'G4',home:'Egypti',away:'Iran',date:'21.6.',group:'G',ko:'2026-06-21T19:00Z'},
-    {id:'G5',home:'Belgia',away:'Iran',date:'25.6.',group:'G',ko:'2026-06-25T22:00Z'},
-    {id:'G6',home:'Uusi-Seelanti',away:'Egypti',date:'25.6.',group:'G',ko:'2026-06-25T22:00Z'},
+    {id:'G3',home:'Belgia',away:'Uusi-Seelanti',date:'20.6.',group:'G',ko:'2026-06-21T19:00Z'},
+    {id:'G4',home:'Egypti',away:'Iran',date:'21.6.',group:'G',ko:'2026-06-22T01:00Z'},
+    {id:'G5',home:'Belgia',away:'Iran',date:'25.6.',group:'G',ko:'2026-06-27T01:00Z'},
+    {id:'G6',home:'Uusi-Seelanti',away:'Egypti',date:'25.6.',group:'G',ko:'2026-06-27T01:00Z'},
     // Lohko H: Espanja, Kap Verde, Saudi-Arabia, Uruguay
     {id:'H1',home:'Espanja',away:'Kap Verde',date:'15.6.',group:'H',ko:'2026-06-15T17:00Z'},
-    {id:'H2',home:'Saudi-Arabia',away:'Uruguay',date:'15.6.',group:'H',ko:'2026-06-15T22:00Z'},
+    {id:'H2',home:'Saudi-Arabia',away:'Uruguay',date:'15.6.',group:'H',ko:'2026-06-15T23:00Z'},
     {id:'H3',home:'Espanja',away:'Saudi-Arabia',date:'21.6.',group:'H',ko:'2026-06-21T17:00Z'},
-    {id:'H4',home:'Uruguay',away:'Kap Verde',date:'21.6.',group:'H',ko:'2026-06-21T22:00Z'},
-    {id:'H5',home:'Espanja',away:'Uruguay',date:'26.6.',group:'H',ko:'2026-06-26T02:00Z'},
-    {id:'H6',home:'Kap Verde',away:'Saudi-Arabia',date:'26.6.',group:'H',ko:'2026-06-26T02:00Z'},
+    {id:'H4',home:'Uruguay',away:'Kap Verde',date:'21.6.',group:'H',ko:'2026-06-21T23:00Z'},
+    {id:'H5',home:'Espanja',away:'Uruguay',date:'26.6.',group:'H',ko:'2026-06-27T02:00Z'},
+    {id:'H6',home:'Kap Verde',away:'Saudi-Arabia',date:'26.6.',group:'H',ko:'2026-06-27T02:00Z'},
     // Lohko I: Ranska, Senegal, Irak, Norja
-    {id:'I1',home:'Ranska',away:'Senegal',date:'15.6.',group:'I',ko:'2026-06-15T19:00Z'},
+    {id:'I1',home:'Ranska',away:'Senegal',date:'15.6.',group:'I',ko:'2026-06-15T21:00Z'},
     {id:'I2',home:'Irak',away:'Norja',date:'16.6.',group:'I',ko:'2026-06-16T22:00Z'},
-    {id:'I3',home:'Ranska',away:'Irak',date:'21.6.',group:'I',ko:'2026-06-21T23:00Z'},
+    {id:'I3',home:'Ranska',away:'Irak',date:'21.6.',group:'I',ko:'2026-06-21T21:00Z'},
     {id:'I4',home:'Norja',away:'Senegal',date:'22.6.',group:'I',ko:'2026-06-22T01:00Z'},
-    {id:'I5',home:'Ranska',away:'Norja',date:'26.6.',group:'I',ko:'2026-06-26T22:00Z'},
-    {id:'I6',home:'Senegal',away:'Irak',date:'26.6.',group:'I',ko:'2026-06-26T22:00Z'},
+    {id:'I5',home:'Ranska',away:'Norja',date:'26.6.',group:'I',ko:'2026-06-27T22:00Z'},
+    {id:'I6',home:'Senegal',away:'Irak',date:'26.6.',group:'I',ko:'2026-06-27T22:00Z'},
     // Lohko J: Argentiina, Algeria, Itävalta, Jordania
     {id:'J1',home:'Argentiina',away:'Algeria',date:'16.6.',group:'J',ko:'2026-06-17T01:00Z'},
-    {id:'J2',home:'Itävalta',away:'Jordania',date:'17.6.',group:'J',ko:'2026-06-17T04:00Z'},
+    {id:'J2',home:'Itävalta',away:'Jordania',date:'17.6.',group:'J',ko:'2026-06-17T00:00Z'},
     {id:'J3',home:'Argentiina',away:'Itävalta',date:'22.6.',group:'J',ko:'2026-06-22T19:00Z'},
     {id:'J4',home:'Jordania',away:'Algeria',date:'22.6.',group:'J',ko:'2026-06-22T22:00Z'},
-    {id:'J5',home:'Argentiina',away:'Jordania',date:'27.6.',group:'J',ko:'2026-06-27T02:00Z'},
-    {id:'J6',home:'Algeria',away:'Itävalta',date:'27.6.',group:'J',ko:'2026-06-27T02:00Z'},
+    {id:'J5',home:'Argentiina',away:'Jordania',date:'27.6.',group:'J',ko:'2026-06-27T23:00Z'},
+    {id:'J6',home:'Algeria',away:'Itävalta',date:'27.6.',group:'J',ko:'2026-06-27T23:00Z'},
     // Lohko K: Portugali, Kongo DR, Uzbekistan, Kolumbia
     {id:'K1',home:'Portugali',away:'Kongo DR',date:'17.6.',group:'K',ko:'2026-06-17T17:00Z'},
     {id:'K2',home:'Uzbekistan',away:'Kolumbia',date:'18.6.',group:'K',ko:'2026-06-18T02:00Z'},
     {id:'K3',home:'Portugali',away:'Uzbekistan',date:'22.6.',group:'K',ko:'2026-06-22T23:00Z'},
     {id:'K4',home:'Kolumbia',away:'Kongo DR',date:'23.6.',group:'K',ko:'2026-06-23T01:00Z'},
-    {id:'K5',home:'Portugali',away:'Kolumbia',date:'27.6.',group:'K',ko:'2026-06-27T22:00Z'},
-    {id:'K6',home:'Kongo DR',away:'Uzbekistan',date:'27.6.',group:'K',ko:'2026-06-27T22:00Z'},
+    {id:'K5',home:'Portugali',away:'Kolumbia',date:'27.6.',group:'K',ko:'2026-06-28T00:00Z'},
+    {id:'K6',home:'Kongo DR',away:'Uzbekistan',date:'27.6.',group:'K',ko:'2026-06-28T00:00Z'},
     // Lohko L: Englanti, Kroatia, Ghana, Panama
     {id:'L1',home:'Englanti',away:'Kroatia',date:'17.6.',group:'L',ko:'2026-06-17T20:00Z'},
     {id:'L2',home:'Ghana',away:'Panama',date:'17.6.',group:'L',ko:'2026-06-17T23:00Z'},
     {id:'L3',home:'Englanti',away:'Ghana',date:'23.6.',group:'L',ko:'2026-06-23T22:00Z'},
     {id:'L4',home:'Panama',away:'Kroatia',date:'24.6.',group:'L',ko:'2026-06-24T01:00Z'},
-    {id:'L5',home:'Panama',away:'Englanti',date:'27.6.',group:'L',ko:'2026-06-27T23:00Z'},
-    {id:'L6',home:'Kroatia',away:'Ghana',date:'27.6.',group:'L',ko:'2026-06-27T23:00Z'},
+    {id:'L5',home:'Panama',away:'Englanti',date:'27.6.',group:'L',ko:'2026-06-28T02:00Z'},
+    {id:'L6',home:'Kroatia',away:'Ghana',date:'27.6.',group:'L',ko:'2026-06-28T02:00Z'},
   ],
   r32:[
     {id:'R32_1',home:'1A',away:'3. sija',date:'28.6.',group:'32 parhaan kierros',ko:'2026-06-28T17:00Z'},
@@ -439,15 +439,17 @@ async function loadPlayersForLogin() {
     // Show loading state
     if(c) c.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:1rem">Ladataan…</div>';
 
+    if(!db) throw new Error('Tietokantayhteys ei ole valmis – päivitä sivu');
     const { data, error } = await db.from('players').select('*').order('slot');
     if(error) throw error;
     players = data || [];
     renderLoginList();
   } catch(e) {
-    console.error('loadPlayersForLogin failed:', e);
+    console.error('loadPlayersForLogin failed:', e?.message || e?.code || JSON.stringify(e));
     if(sub) sub.textContent = 'Yhteysvirhe';
     if(c) c.innerHTML = `<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">
       Tietokantaan ei saatu yhteyttä.<br>
+      <small style="color:#666">${e?.message || e?.code || 'Tuntematon virhe'}</small><br>
       <button onclick="loadPlayersForLogin()" style="margin-top:8px;padding:6px 14px;background:var(--green);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer">
         Yritä uudelleen
       </button>
@@ -684,44 +686,56 @@ function buildTodayCard(m, type) {
   const act = actuals[m.id];
   const locked = isLocked(m);
   const timeLabel = kickoffLabel(m);
+  const isLive = type === 'live';
 
+  // Score section
   let scoreHtml = '';
   if(act && act.home_score !== null) {
     const statusMap = {FT:'Päättynyt',AET:'Jatkoaika',PEN:'Rangaistuspotkut','1H':'1. puoliaika','2H':'2. puoliaika',HT:'Puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'};
     const statusLabel = statusMap[act.status] || act.status || 'Päättynyt';
-    scoreHtml = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+    scoreHtml = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
       <span class="match-score-big">${act.home_score} – ${act.away_score}</span>
-      <span style="font-size:12px;color:var(--green-mid);font-weight:500">${statusLabel}</span>
+      <span style="font-size:12px;color:${isLive?'#dc2626':'var(--green-mid)'};font-weight:600">${statusLabel}</span>
     </div>`;
-  } else if(type === 'upcoming') {
-    const myPred = me ? predictions[`${m.id}_${me.id}`] : null;
-    const predHtml = myPred && myPred.home_score !== null
-      ? `<span style="font-size:13px;color:var(--text-muted)">Veikkauksesi: <strong>${myPred.home_score}–${myPred.away_score}</strong></span>`
-      : `<span style="font-size:13px;color:var(--text-muted);font-style:italic">Et ole vielä veikannut</span>`;
-    scoreHtml = `<div style="margin-bottom:4px">${predHtml}</div>`;
   }
 
-  let predsHtml = '';
-  if((type === 'recent' || type === 'live') && players.length && act && act.home_score !== null) {
-    const chips = players.map(p => {
-      const pred = predictions[`${m.id}_${p.id}`];
-      const pts = getPoints(m.id, p.id);
-      const isMe = me && p.id === me.id;
-      const label = pred && pred.home_score !== null ? `${pred.home_score}–${pred.away_score}` : '–';
-      const cls = pts === 3 ? 'correct-exact' : pts === 2 ? 'correct-winner' : pts === 0 ? 'wrong' : 'pending';
-      const ptsLabel = pts === 3 ? ' ✓' : pts === 2 ? ' ✓' : pts === 0 ? ' ✗' : '';
-      return `<span class="pred-chip ${cls}">${isMe ? '<strong>' : ''}${p.name.split(' ')[0]}${isMe ? '</strong>' : ''}: ${label}${ptsLabel}</span>`;
-    }).join('');
-    predsHtml = `<div class="pred-comparison">${chips}</div>`;
+  // Always show all predictions (own + others)
+  const myPred = me ? predictions[`${m.id}_${me.id}`] : null;
+  const hasResult = act && act.home_score !== null;
+
+  const chips = players.map(p => {
+    const pred = predictions[`${m.id}_${p.id}`];
+    const pts = hasResult ? getPoints(m.id, p.id) : null;
+    const isMe = me && p.id === me.id;
+    const label = pred && pred.home_score !== null ? `${pred.home_score}–${pred.away_score}` : '–';
+    const cls = pts === 3 ? 'correct-exact' : pts === 2 ? 'correct-winner' : pts === 0 ? 'wrong' : 'pending';
+    const ptsLabel = pts === 3 ? ' ✓' : pts === 2 ? ' ✓' : pts === 0 ? ' ✗' : '';
+    return `<span class="pred-chip ${cls}">${isMe ? '<strong>' : ''}${p.name.split(' ')[0]}${isMe ? '</strong>' : ''}: ${label}${ptsLabel}</span>`;
+  }).join('');
+
+  const predsHtml = players.length
+    ? `<div class="pred-comparison">${chips}</div>`
+    : '';
+
+  // Upcoming: show lock warning if not yet predicted
+  let upcomingHint = '';
+  if(type === 'upcoming' && !locked && (!myPred || myPred.home_score === null)) {
+    upcomingHint = `<div style="font-size:12px;color:#f59e0b;margin-bottom:6px">⚠️ Et ole vielä veikannut</div>`;
   }
 
-  return `<div class="match">
-    <div class="match-head">
+  // Live match border highlight
+  const liveStyle = isLive
+    ? 'border:2px solid #dc2626;box-shadow:0 0 0 3px rgba(220,38,38,0.1)'
+    : '';
+
+  return `<div class="match" style="${liveStyle}">
+    <div class="match-head" style="${isLive?'background:#fff5f5':''}">
       <span class="match-teams">${m.home} – ${m.away}</span>
       <span class="match-date ${type === 'upcoming' && !locked ? 'upcoming-ko' : ''}">${timeLabel}</span>
     </div>
     <div class="match-body">
       ${scoreHtml}
+      ${upcomingHint}
       ${predsHtml}
     </div>
   </div>`;
