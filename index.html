@@ -796,6 +796,13 @@ function renderGroupTabs() {
   ).join('');
 }
 
+function isTBDMatch(m) {
+  // A match is "TBD" if either team name is a placeholder pattern
+  // like "1A", "2B", "3. sija" rather than a real team name
+  const placeholderPattern = /^[123]\.?\s?[A-L]?$|^\d[A-L]$|^3\.\s?sija$|^V\s|^H\s/;
+  return placeholderPattern.test(m.home) || placeholderPattern.test(m.away);
+}
+
 function renderPredictions() {
   buildPhaseTabs('predictPhaseTabs', currentPredPhase, 'setPredPhase');
   renderGroupTabs();
@@ -815,6 +822,7 @@ function renderPredictions() {
     const locked = isLocked(m);
     const timeLabel = kickoffLabel(m);
     const myWinner = myPred?.winner || null;
+    const isTBD = isKnockout && isTBDMatch(m);
 
     const otherPills = players.filter(p=>p.id!==me.id).map(p=>{
       const op = predictions[`${m.id}_${p.id}`];
@@ -853,22 +861,28 @@ function renderPredictions() {
         </div>
       </div>
       <div class="match-body">
-        ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Voittaja:</div>`:''}
-        ${winnerHtml}
-        ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin:8px 0 4px">Varsinaisen peliajan tulos:</div>`:''}
-        <div class="my-pred" style="${isKnockout?'margin-top:4px':''}">
-          <div class="score-box">
-            <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?"
-              ${locked?'disabled':''} style="${inputStyle}"
-              onchange="savePred('${m.id}','home',this.value)">
-            <span class="score-sep">–</span>
-            <input type="number" min="0" max="20" value="${myPred&&myPred.away_score!==null?myPred.away_score:''}" placeholder="?"
-              ${locked?'disabled':''} style="${inputStyle}"
-              onchange="savePred('${m.id}','away',this.value)">
+        ${isTBD ? `
+          <div style="font-size:13px;color:var(--text-muted);font-style:italic;padding:8px 0;text-align:center;background:var(--bg);border-radius:var(--radius-sm)">
+            ⏳ Joukkueet selviävät alkulohkojen päätyttyä
           </div>
-          ${ptsHtml}${lockHtml}
-        </div>
-        ${otherPills?`<div class="others-preds">${otherPills}</div>`:''}
+        ` : `
+          ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Voittaja:</div>`:''}
+          ${winnerHtml}
+          ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin:8px 0 4px">Varsinaisen peliajan tulos:</div>`:''}
+          <div class="my-pred" style="${isKnockout?'margin-top:4px':''}">
+            <div class="score-box">
+              <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?"
+                ${locked?'disabled':''} style="${inputStyle}"
+                onchange="savePred('${m.id}','home',this.value)">
+              <span class="score-sep">–</span>
+              <input type="number" min="0" max="20" value="${myPred&&myPred.away_score!==null?myPred.away_score:''}" placeholder="?"
+                ${locked?'disabled':''} style="${inputStyle}"
+                onchange="savePred('${m.id}','away',this.value)">
+            </div>
+            ${ptsHtml}${lockHtml}
+          </div>
+          ${otherPills?`<div class="others-preds">${otherPills}</div>`:''}
+        `}
       </div>
     </div>`;
   });
