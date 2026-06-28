@@ -260,6 +260,1235 @@
 </main>
 
 <script>
+// Bump this string whenever a deploy changes login logic, player IDs,
+// or anything else that could leave an old session in a broken state.
+// Changing it forces every browser to do a clean re-login on next visit.
+var APP_VERSION = '2026-06-28-r32';
+
+var SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
+// db is initialised after Supabase library loads (see bottom of file)
+var db;
+
+// ko = UTC kickoff ISO string. Predictions lock at kickoff.
+const MATCHES = {
+  group:[
+    // Lohko A: Meksiko, Etelä-Afrikka, Etelä-Korea, Tshekki
+    {id:'A1',home:'Meksiko',away:'Etelä-Afrikka',date:'11.6.',group:'A',ko:'2026-06-11T19:00Z',tv:'mtv'},
+    {id:'A2',home:'Etelä-Korea',away:'Tshekki',date:'12.6.',group:'A',ko:'2026-06-12T02:00Z',tv:'mtv'},
+    {id:'A3',home:'Tshekki',away:'Etelä-Afrikka',date:'18.6.',group:'A',ko:'2026-06-18T16:00Z',tv:'yle'},
+    {id:'A4',home:'Meksiko',away:'Etelä-Korea',date:'19.6.',group:'A',ko:'2026-06-19T01:00Z',tv:'yle'},
+    {id:'A5',home:'Tshekki',away:'Meksiko',date:'25.6.',group:'A',ko:'2026-06-25T01:00Z',tv:'yle'},
+    {id:'A6',home:'Etelä-Afrikka',away:'Etelä-Korea',date:'25.6.',group:'A',ko:'2026-06-25T01:00Z',tv:'yle'},
+    // Lohko B: Kanada, Bosnia-Herts., Qatar, Sveitsi
+    {id:'B1',home:'Kanada',away:'Bosnia-Herts.',date:'12.6.',group:'B',ko:'2026-06-12T19:00Z',tv:'yle'},
+    {id:'B2',home:'Qatar',away:'Sveitsi',date:'13.6.',group:'B',ko:'2026-06-13T19:00Z',tv:'mtv'},
+    {id:'B3',home:'Sveitsi',away:'Bosnia-Herts.',date:'18.6.',group:'B',ko:'2026-06-18T19:00Z',tv:'yle'},
+    {id:'B4',home:'Kanada',away:'Qatar',date:'18.6.',group:'B',ko:'2026-06-18T22:00Z',tv:'yle'},
+    {id:'B5',home:'Sveitsi',away:'Kanada',date:'24.6.',group:'B',ko:'2026-06-24T19:00Z',tv:'yle'},
+    {id:'B6',home:'Bosnia-Herts.',away:'Qatar',date:'24.6.',group:'B',ko:'2026-06-24T19:00Z',tv:'yle'},
+    // Lohko C: Brasilia, Marokko, Haiti, Skotlanti
+    {id:'C1',home:'Brasilia',away:'Marokko',date:'13.6.',group:'C',ko:'2026-06-13T22:00Z',tv:'mtv'},
+    {id:'C2',home:'Haiti',away:'Skotlanti',date:'14.6.',group:'C',ko:'2026-06-14T01:00Z',tv:'mtv'},
+    {id:'C3',home:'Skotlanti',away:'Marokko',date:'19.6.',group:'C',ko:'2026-06-19T22:00Z',tv:'mtv'},
+    {id:'C4',home:'Brasilia',away:'Haiti',date:'20.6.',group:'C',ko:'2026-06-20T00:30Z',tv:'mtv'},
+    {id:'C5',home:'Skotlanti',away:'Brasilia',date:'25.6.',group:'C',ko:'2026-06-24T22:00Z',tv:'yle'},
+    {id:'C6',home:'Marokko',away:'Haiti',date:'25.6.',group:'C',ko:'2026-06-24T22:00Z',tv:'yle'},
+    // Lohko D: USA, Paraguay, Australia, Turkki
+    {id:'D1',home:'USA',away:'Paraguay',date:'13.6.',group:'D',ko:'2026-06-13T01:00Z',tv:'yle'},
+    {id:'D2',home:'Australia',away:'Turkki',date:'14.6.',group:'D',ko:'2026-06-14T16:00Z',tv:'mtv'},
+    {id:'D3',home:'USA',away:'Australia',date:'19.6.',group:'D',ko:'2026-06-19T19:00Z',tv:'mtv'},
+    {id:'D4',home:'Turkki',away:'Paraguay',date:'20.6.',group:'D',ko:'2026-06-20T03:00Z',tv:'mtv'},
+    {id:'D5',home:'Turkki',away:'USA',date:'26.6.',group:'D',ko:'2026-06-26T02:00Z',tv:'mtv'},
+    {id:'D6',home:'Paraguay',away:'Australia',date:'26.6.',group:'D',ko:'2026-06-26T02:00Z',tv:'mtv'},
+    // Lohko E: Saksa, Curaçao, Norsunluurannikko, Ecuador
+    {id:'E1',home:'Saksa',away:'Curaçao',date:'14.6.',group:'E',ko:'2026-06-14T17:00Z',tv:'yle'},
+    {id:'E2',home:'Norsunluurannikko',away:'Ecuador',date:'15.6.',group:'E',ko:'2026-06-14T23:00Z',tv:'yle'},
+    {id:'E3',home:'Saksa',away:'Norsunluurannikko',date:'20.6.',group:'E',ko:'2026-06-20T20:00Z',tv:'yle'},
+    {id:'E4',home:'Ecuador',away:'Curaçao',date:'21.6.',group:'E',ko:'2026-06-21T00:00Z',tv:'yle'},
+    {id:'E5',home:'Curaçao',away:'Norsunluurannikko',date:'25.6.',group:'E',ko:'2026-06-25T20:00Z',tv:'mtv'},
+    {id:'E6',home:'Ecuador',away:'Saksa',date:'25.6.',group:'E',ko:'2026-06-25T20:00Z',tv:'mtv'},
+    // Lohko F: Hollanti, Japani, Tunisia, Ruotsi
+    {id:'F1',home:'Hollanti',away:'Japani',date:'14.6.',group:'F',ko:'2026-06-14T20:00Z',tv:'yle'},
+    {id:'F2',home:'Ruotsi',away:'Tunisia',date:'16.6.',group:'F',ko:'2026-06-15T02:00Z',tv:'yle'},
+    {id:'F3',home:'Hollanti',away:'Ruotsi',date:'20.6.',group:'F',ko:'2026-06-20T17:00Z',tv:'yle'},
+    {id:'F4',home:'Tunisia',away:'Japani',date:'21.6.',group:'F',ko:'2026-06-21T04:00Z',tv:'yle'},
+    {id:'F5',home:'Japani',away:'Ruotsi',date:'26.6.',group:'F',ko:'2026-06-25T23:00Z',tv:'mtv'},
+    {id:'F6',home:'Tunisia',away:'Hollanti',date:'26.6.',group:'F',ko:'2026-06-25T23:00Z',tv:'mtv'},
+    // Lohko G: Belgia, Egypti, Iran, Uusi-Seelanti
+    {id:'G1',home:'Belgia',away:'Egypti',date:'15.6.',group:'G',ko:'2026-06-15T19:00Z',tv:'mtv'},
+    {id:'G2',home:'Iran',away:'Uusi-Seelanti',date:'16.6.',group:'G',ko:'2026-06-16T01:00Z',tv:'mtv'},
+    {id:'G3',home:'Belgia',away:'Iran',date:'21.6.',group:'G',ko:'2026-06-21T19:00Z',tv:'mtv'},
+    {id:'G4',home:'Uusi-Seelanti',away:'Egypti',date:'22.6.',group:'G',ko:'2026-06-22T01:00Z',tv:'mtv'},
+    {id:'G5',home:'Egypti',away:'Iran',date:'27.6.',group:'G',ko:'2026-06-27T03:00Z',tv:'yle'},
+    {id:'G6',home:'Uusi-Seelanti',away:'Belgia',date:'27.6.',group:'G',ko:'2026-06-27T03:00Z',tv:'yle'},
+    // Lohko H: Espanja, Kap Verde, Saudi-Arabia, Uruguay
+    {id:'H1',home:'Espanja',away:'Kap Verde',date:'15.6.',group:'H',ko:'2026-06-15T16:00Z',tv:'mtv'},
+    {id:'H2',home:'Saudi-Arabia',away:'Uruguay',date:'16.6.',group:'H',ko:'2026-06-15T22:00Z',tv:'mtv'},
+    {id:'H3',home:'Espanja',away:'Saudi-Arabia',date:'21.6.',group:'H',ko:'2026-06-21T16:00Z',tv:'mtv'},
+    {id:'H4',home:'Uruguay',away:'Kap Verde',date:'22.6.',group:'H',ko:'2026-06-21T22:00Z',tv:'mtv'},
+    {id:'H5',home:'Kap Verde',away:'Saudi-Arabia',date:'27.6.',group:'H',ko:'2026-06-27T00:00Z',tv:'yle'},
+    {id:'H6',home:'Uruguay',away:'Espanja',date:'27.6.',group:'H',ko:'2026-06-27T00:00Z',tv:'yle'},
+    // Lohko I: Ranska, Senegal, Irak, Norja
+    {id:'I1',home:'Ranska',away:'Senegal',date:'16.6.',group:'I',ko:'2026-06-16T19:00Z',tv:'yle'},
+    {id:'I2',home:'Irak',away:'Norja',date:'17.6.',group:'I',ko:'2026-06-16T22:00Z',tv:'yle'},
+    {id:'I3',home:'Ranska',away:'Irak',date:'23.6.',group:'I',ko:'2026-06-22T21:00Z',tv:'yle'},
+    {id:'I4',home:'Norja',away:'Senegal',date:'23.6.',group:'I',ko:'2026-06-23T00:00Z',tv:'yle'},
+    {id:'I5',home:'Norja',away:'Ranska',date:'27.6.',group:'I',ko:'2026-06-26T19:00Z',tv:'yle'},
+    {id:'I6',home:'Senegal',away:'Irak',date:'27.6.',group:'I',ko:'2026-06-26T19:00Z',tv:'yle'},
+    // Lohko J: Argentiina, Algeria, Itävalta, Jordania
+    {id:'J1',home:'Argentiina',away:'Algeria',date:'16.6.',group:'J',ko:'2026-06-17T01:00Z',tv:'yle'},
+    {id:'J2',home:'Itävalta',away:'Jordania',date:'17.6.',group:'J',ko:'2026-06-17T04:00Z',tv:'yle'},
+    {id:'J3',home:'Argentiina',away:'Itävalta',date:'22.6.',group:'J',ko:'2026-06-22T17:00Z',tv:'yle'},
+    {id:'J4',home:'Jordania',away:'Algeria',date:'23.6.',group:'J',ko:'2026-06-23T03:00Z',tv:'yle'},
+    {id:'J5',home:'Algeria',away:'Itävalta',date:'28.6.',group:'J',ko:'2026-06-28T02:00Z',tv:'mtv'},
+    {id:'J6',home:'Jordania',away:'Argentiina',date:'28.6.',group:'J',ko:'2026-06-28T02:00Z',tv:'mtv'},
+    // Lohko K: Portugali, Kongo DR, Uzbekistan, Kolumbia
+    {id:'K1',home:'Portugali',away:'Kongo DR',date:'17.6.',group:'K',ko:'2026-06-17T17:00Z',tv:'mtv'},
+    {id:'K2',home:'Uzbekistan',away:'Kolumbia',date:'18.6.',group:'K',ko:'2026-06-18T02:00Z',tv:'mtv'},
+    {id:'K3',home:'Portugali',away:'Uzbekistan',date:'23.6.',group:'K',ko:'2026-06-23T17:00Z',tv:'mtv'},
+    {id:'K4',home:'Kolumbia',away:'Kongo DR',date:'24.6.',group:'K',ko:'2026-06-24T02:00Z',tv:'mtv'},
+    {id:'K5',home:'Kolumbia',away:'Portugali',date:'28.6.',group:'K',ko:'2026-06-27T23:30Z',tv:'mtv'},
+    {id:'K6',home:'Kongo DR',away:'Uzbekistan',date:'28.6.',group:'K',ko:'2026-06-27T23:30Z',tv:'mtv'},
+    // Lohko L: Englanti, Kroatia, Ghana, Panama
+    {id:'L1',home:'Englanti',away:'Kroatia',date:'17.6.',group:'L',ko:'2026-06-17T20:00Z',tv:'mtv'},
+    {id:'L2',home:'Ghana',away:'Panama',date:'17.6.',group:'L',ko:'2026-06-17T23:00Z',tv:'mtv'},
+    {id:'L3',home:'Englanti',away:'Ghana',date:'24.6.',group:'L',ko:'2026-06-23T20:00Z',tv:'mtv'},
+    {id:'L4',home:'Panama',away:'Kroatia',date:'24.6.',group:'L',ko:'2026-06-23T23:00Z',tv:'mtv'},
+    {id:'L5',home:'Panama',away:'Englanti',date:'28.6.',group:'L',ko:'2026-06-27T21:00Z',tv:'mtv'},
+    {id:'L6',home:'Kroatia',away:'Ghana',date:'28.6.',group:'L',ko:'2026-06-27T21:00Z',tv:'mtv'},
+  ],
+  r32:[
+    {id:'R32_1',home:'Etelä-Afrikka',away:'Kanada',date:'28.6.',group:'32 parhaan kierros',ko:'2026-06-28T19:00Z',tv:'yle'},
+    {id:'R32_2',home:'Saksa',away:'Paraguay',date:'29.6.',group:'32 parhaan kierros',ko:'2026-06-29T20:30Z',tv:'yle'},
+    {id:'R32_3',home:'Hollanti',away:'Marokko',date:'30.6.',group:'32 parhaan kierros',ko:'2026-06-30T01:00Z',tv:'mtv'},
+    {id:'R32_4',home:'Brasilia',away:'Japani',date:'29.6.',group:'32 parhaan kierros',ko:'2026-06-29T17:00Z',tv:'mtv'},
+    {id:'R32_5',home:'Ranska',away:'Ruotsi',date:'30.6.',group:'32 parhaan kierros',ko:'2026-06-30T21:00Z',tv:'yle'},
+    {id:'R32_6',home:'Norsunluurannikko',away:'Norja',date:'30.6.',group:'32 parhaan kierros',ko:'2026-06-30T17:00Z',tv:'yle'},
+    {id:'R32_7',home:'Meksiko',away:'Ecuador',date:'1.7.',group:'32 parhaan kierros',ko:'2026-07-01T01:00Z',tv:'yle'},
+    {id:'R32_8',home:'Englanti',away:'Kongo DR',date:'1.7.',group:'32 parhaan kierros',ko:'2026-07-01T16:00Z',tv:'mtv'},
+    {id:'R32_9',home:'USA',away:'Bosnia-Herts.',date:'2.7.',group:'32 parhaan kierros',ko:'2026-07-02T00:00Z',tv:'mtv'},
+    {id:'R32_10',home:'Belgia',away:'Senegal',date:'1.7.',group:'32 parhaan kierros',ko:'2026-07-01T20:00Z',tv:'yle'},
+    {id:'R32_11',home:'Portugali',away:'Kroatia',date:'2.7.',group:'32 parhaan kierros',ko:'2026-07-02T23:00Z',tv:'yle'},
+    {id:'R32_12',home:'Espanja',away:'Itävalta',date:'2.7.',group:'32 parhaan kierros',ko:'2026-07-02T19:00Z',tv:'mtv'},
+    {id:'R32_13',home:'Sveitsi',away:'Algeria',date:'3.7.',group:'32 parhaan kierros',ko:'2026-07-03T03:00Z',tv:'mtv'},
+    {id:'R32_14',home:'Argentiina',away:'Kap Verde',date:'3.7.',group:'32 parhaan kierros',ko:'2026-07-03T22:00Z',tv:'yle'},
+    {id:'R32_15',home:'Kolumbia',away:'Ghana',date:'4.7.',group:'32 parhaan kierros',ko:'2026-07-04T01:30Z',tv:'yle'},
+    {id:'R32_16',home:'Australia',away:'Egypti',date:'3.7.',group:'32 parhaan kierros',ko:'2026-07-03T18:00Z',tv:'mtv'},
+  ],
+  r16:[
+    {id:'R16_1',home:'V R32-1',away:'V R32-2',date:'5.7.',group:'16 parhaan kierros',ko:'2026-07-05T17:00Z',tv:'mtv'},
+    {id:'R16_2',home:'V R32-3',away:'V R32-4',date:'5.7.',group:'16 parhaan kierros',ko:'2026-07-05T20:00Z',tv:'mtv'},
+    {id:'R16_3',home:'V R32-5',away:'V R32-6',date:'6.7.',group:'16 parhaan kierros',ko:'2026-07-06T17:00Z',tv:'yle'},
+    {id:'R16_4',home:'V R32-7',away:'V R32-8',date:'6.7.',group:'16 parhaan kierros',ko:'2026-07-06T20:00Z',tv:'yle'},
+    {id:'R16_5',home:'V R32-9',away:'V R32-10',date:'7.7.',group:'16 parhaan kierros',ko:'2026-07-07T17:00Z',tv:'yle'},
+    {id:'R16_6',home:'V R32-11',away:'V R32-12',date:'7.7.',group:'16 parhaan kierros',ko:'2026-07-07T20:00Z',tv:'yle'},
+    {id:'R16_7',home:'V R32-13',away:'V R32-14',date:'8.7.',group:'16 parhaan kierros',ko:'2026-07-08T17:00Z',tv:'mtv'},
+    {id:'R16_8',home:'V R32-15',away:'V R32-16',date:'8.7.',group:'16 parhaan kierros',ko:'2026-07-08T20:00Z',tv:'mtv'},
+  ],
+  qf:[
+    {id:'QF1',home:'V R16-1',away:'V R16-2',date:'11.7.',group:'Neljännesvälierät',ko:'2026-07-11T17:00Z',tv:'mtv'},
+    {id:'QF2',home:'V R16-3',away:'V R16-4',date:'11.7.',group:'Neljännesvälierät',ko:'2026-07-11T20:00Z',tv:'mtv'},
+    {id:'QF3',home:'V R16-5',away:'V R16-6',date:'12.7.',group:'Neljännesvälierät',ko:'2026-07-12T17:00Z',tv:'yle'},
+    {id:'QF4',home:'V R16-7',away:'V R16-8',date:'12.7.',group:'Neljännesvälierät',ko:'2026-07-12T20:00Z',tv:'yle'},
+  ],
+  sf:[
+    {id:'SF1',home:'V QF1',away:'V QF2',date:'15.7.',group:'Välierät',ko:'2026-07-15T20:00Z',tv:'yle'},
+    {id:'SF2',home:'V QF3',away:'V QF4',date:'16.7.',group:'Välierät',ko:'2026-07-16T20:00Z',tv:'mtv'},
+  ],
+  final:[
+    {id:'THIRD',home:'H SF1',away:'H SF2',date:'18.7.',group:'Pronssiottelu',ko:'2026-07-18T20:00Z',tv:'mtv'},
+    {id:'FINAL',home:'V SF1',away:'V SF2',date:'19.7.',group:'Finaali',ko:'2026-07-19T19:00Z',tv:'yle'},
+  ]
+};
+
+
+function isLocked(match) {
+  if(!match.ko) return false;
+  return Date.now() >= new Date(match.ko).getTime();
+}
+
+function kickoffLabel(match) {
+  if(!match.ko) return match.date;
+  const d = new Date(match.ko);
+  const now = Date.now();
+  const diff = d.getTime() - now;
+  if(diff <= 0) return match.date + ' 🔒';
+  if(diff < 3600000) {
+    const mins = Math.ceil(diff/60000);
+    return `Lukittuu ${mins} min päästä`;
+  }
+  // Show local time in Finnish
+  const opts = {weekday:'short', day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Helsinki'};
+  return d.toLocaleString('fi-FI', opts);
+}
+
+const PHASES = [
+  {key:'group',label:'Alkulohkot'},{key:'r32',label:'32 parasta'},
+  {key:'r16',label:'16 parasta'},{key:'qf',label:'Neljännesvälierät'},
+  {key:'sf',label:'Välierät'},{key:'final',label:'Finaali'},
+];
+
+
+let players = [];
+let predictions = {};
+let actuals = {};
+let currentPredPhase = 'group';
+let currentResultPhase = 'group';
+let me = null; // currently logged-in player object
+let selectedLoginId = null;
+
+function setSyncState(s) {
+  const d = document.getElementById('syncDot');
+  d.className = 'sync-dot' + (s==='syncing'?' syncing':s==='error'?' error':'');
+}
+
+function initials(name) {
+  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+
+async function loadPlayersForLogin() {
+  const c = document.getElementById('loginPlayerList');
+  const sub = document.getElementById('loginSub');
+  try {
+    // Show loading state
+    if(c) c.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:1rem">Ladataan…</div>';
+
+    if(!db) throw new Error('Tietokantayhteys ei ole valmis – päivitä sivu');
+    const { data, error } = await db.from('players').select('*').order('slot');
+    if(error) throw error;
+    players = data || [];
+    renderLoginList();
+  } catch(e) {
+    console.error('loadPlayersForLogin failed:', e?.message || e?.code || JSON.stringify(e));
+    if(sub) sub.textContent = 'Yhteysvirhe';
+    if(c) c.innerHTML = `<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">
+      Tietokantaan ei saatu yhteyttä.<br>
+      <small style="color:#666">${e?.message || e?.code || 'Tuntematon virhe'}</small><br>
+      <button onclick="loadPlayersForLogin()" style="margin-top:8px;padding:6px 14px;background:var(--green);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer">
+        Yritä uudelleen
+      </button>
+    </div>`;
+  }
+}
+
+function renderLoginList() {
+  const c = document.getElementById('loginPlayerList');
+  const joinRow = document.getElementById('loginJoinRow');
+  const sub = document.getElementById('loginSub');
+
+  if(!players.length) {
+    c.innerHTML = '';
+    sub.textContent = 'Ensimmäisenä mukaan?';
+    joinRow.style.display = 'block';
+    return;
+  }
+  sub.textContent = 'Kuka sinä olet?';
+  c.innerHTML = players.map(p => `
+    <button class="player-btn" id="lb_${p.id}" onclick="selectLoginPlayer('${p.id}')">
+      <div class="avatar">${initials(p.name)}</div>
+      <span>${p.name}</span>
+    </button>`).join('');
+  // show "join as new" only if there's still room
+  joinRow.style.display = players.length < 20 ? 'block' : 'none';
+}
+
+function selectLoginPlayer(id) {
+  selectedLoginId = id;
+  document.querySelectorAll('.player-btn').forEach(b => b.classList.remove('selected'));
+  const btn = document.getElementById('lb_'+id);
+  if(btn) btn.classList.add('selected');
+  document.getElementById('loginBtn').classList.add('ready');
+}
+
+function showJoinForm() {
+  document.getElementById('loginStep1').style.display = 'none';
+  document.getElementById('loginStep2').style.display = 'block';
+  document.getElementById('loginSub').textContent = 'Liity mukaan';
+  setTimeout(() => document.getElementById('newNameInput').focus(), 50);
+}
+
+function showStep1() {
+  document.getElementById('loginStep2').style.display = 'none';
+  document.getElementById('loginStep1').style.display = 'block';
+  document.getElementById('loginSub').textContent = players.length ? 'Kuka sinä olet?' : 'Ensimmäisenä mukaan?';
+}
+
+async function joinAsNew() {
+  const name = document.getElementById('newNameInput').value.trim();
+  if(!name || name.length < 2) return;
+  setSyncState('syncing');
+  try {
+    // If renaming a placeholder slot, update instead of insert
+    if(window._pendingSlotId) {
+      const slotId = window._pendingSlotId;
+      window._pendingSlotId = null;
+      const { error } = await db.from('players').update({name}).eq('id', slotId);
+      if(error) throw error;
+      me = players.find(p => p.id === slotId);
+      if(me) me.name = name;
+    } else {
+      if(players.length >= 20) { alert('Veikkauksessa on jo 20 pelaajaa!'); return; }
+      const slot = (players.map(p=>p.slot).sort().reverse()[0] || 0) + 1;
+      const { data, error } = await db.from('players').insert({name, slot}).select().single();
+      if(error) throw error;
+      me = { id: data.id, name: data.name, slot: data.slot };
+      players.push(me);
+    }
+    localStorage.setItem('mm26_myId', me.id);
+    document.getElementById('loginOverlay').style.display = 'none';
+    updateHeaderUser();
+    await loadAll();
+    setupRealtime();
+  } catch(e) { setSyncState('error'); alert('Liittyminen epäonnistui, yritä uudelleen.'); }
+}
+
+function confirmLogin() {
+  if(!selectedLoginId) return;
+  me = players.find(p => p.id === selectedLoginId);
+  if(!me) return;
+  // If name is placeholder, ask user to set a real name first
+  if(/^Pelaaja \d+$/.test(me.name)) {
+    document.getElementById('newNameInput').value = '';
+    document.getElementById('loginSub').textContent = 'Aseta nimesi';
+    showJoinForm();
+    // Override joinAsNew to update existing slot instead of creating new
+    window._pendingSlotId = me.id;
+    return;
+  }
+  localStorage.setItem('mm26_myId', me.id);
+  document.getElementById('loginOverlay').style.display = 'none';
+  updateHeaderUser();
+  loadAll().then(() => setupRealtime());
+}
+
+function switchUser() {
+  localStorage.removeItem('mm26_myId');
+  me = null;
+  selectedLoginId = null;
+  document.getElementById('loginStep1').style.display = 'block';
+  document.getElementById('loginStep2').style.display = 'none';
+  document.getElementById('loginBtn').classList.remove('ready');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  loadPlayersForLogin();
+}
+
+function updateHeaderUser() {
+  if(!me) return;
+  document.getElementById('headerAvatar').textContent = initials(me.name);
+  document.getElementById('headerName').textContent = me.name;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+async function loadAll(attempt = 1) {
+  setSyncState('syncing');
+  try {
+    const [pr, pred, act] = await Promise.all([
+      db.from('players').select('*').order('slot'),
+      db.from('predictions').select('*'),
+      db.from('actuals').select('*'),
+    ]);
+
+    // If Supabase returned errors, throw so retry kicks in
+    if(pr.error) throw pr.error;
+
+    players = pr.data || [];
+    predictions = {};
+    (pred.data||[]).forEach(p => { predictions[`${p.match_id}_${p.player_id}`] = p; });
+
+    actuals = {};
+    const allMatches = Object.values(MATCHES).flat();
+    (act.data||[]).forEach(a => {
+      if(a.home_score === null || a.away_score === null) return;
+      if(allMatches.find(m => m.id === a.match_id)) {
+        actuals[a.match_id] = a;
+        return;
+      }
+      if(a.home_team && a.away_team) {
+        const found = allMatches.find(m => m.home === a.home_team && m.away === a.away_team);
+        if(found) actuals[found.id] = a;
+      }
+    });
+
+    setSyncState('ok');
+    renderToday();
+    renderPredictions();
+  } catch(e) {
+    console.error(`loadAll attempt ${attempt} failed:`, e);
+    if(attempt < 3) {
+      // Retry with backoff: 2s, 4s
+      setSyncState('syncing');
+      await new Promise(r => setTimeout(r, attempt * 2000));
+      return loadAll(attempt + 1);
+    }
+    setSyncState('error');
+  }
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='today') renderToday();
+  if(name==='predict') renderPredictions();
+  if(name==='results') renderResults();
+  if(name==='scores') renderScores();
+  if(name==='admin') renderAdminSetup();
+}
+
+function renderToday() {
+  const c = document.getElementById('todayContent');
+  if(!c) return;
+  const now = Date.now();
+  const h24 = 24 * 3600 * 1000;
+  const all = Object.values(MATCHES).flat();
+
+  // Categorise matches
+  const live    = all.filter(m => {
+    const act = actuals[m.id];
+    if(!m.ko) return false;
+    const ko = new Date(m.ko).getTime();
+    const status = act?.status;
+    return ['1H','2H','HT','ET','BT','P'].includes(status) ||
+           (ko <= now && ko >= now - 2 * h24 && (!act || act.home_score === null));
+  });
+  const recent  = all.filter(m => {
+    const act = actuals[m.id];
+    if(!act || act.home_score === null) return false;
+    if(live.includes(m)) return false;
+    const ko = new Date(m.ko || 0).getTime();
+    return ko >= now - h24;
+  });
+  const upcoming = all.filter(m => {
+    if(!m.ko) return false;
+    const ko = new Date(m.ko).getTime();
+    return ko > now && ko <= now + h24;
+  });
+
+  if(!live.length && !recent.length && !upcoming.length) {
+    c.innerHTML = '<div class="empty-today">Ei otteluita seuraavien tai edellisten 24 tunnin aikana.</div>';
+    return;
+  }
+
+  let html = '';
+
+  // ── LIVE ──────────────────────────────────────────────────────────────────
+  if(live.length) {
+    html += '<div class="today-section"><span class="live-badge">● LIVE</span> Meneillään</div>';
+    live.forEach(m => { html += buildTodayCard(m, 'live'); });
+  }
+
+  // ── RECENT ────────────────────────────────────────────────────────────────
+  if(recent.length) {
+    html += '<div class="today-section">Viimeiset 24h</div>';
+    [...recent].reverse().forEach(m => { html += buildTodayCard(m, 'recent'); });
+  }
+
+  // ── UPCOMING ──────────────────────────────────────────────────────────────
+  if(upcoming.length) {
+    html += '<div class="today-section">Seuraavat 24h</div>';
+    upcoming.forEach(m => { html += buildTodayCard(m, 'upcoming'); });
+  }
+
+  c.innerHTML = html;
+}
+
+function buildTodayCard(m, type) {
+  const act = actuals[m.id];
+  const locked = isLocked(m);
+  const timeLabel = kickoffLabel(m);
+  const isLive = type === 'live';
+
+  // TV channel badge
+  const tvMap = {yle:'📺 Yle Areena', mtv:'📺 MTV3', 'mtv+':'📺 Katsomo+'};
+  const tvClass = {'yle':'tv-yle', 'mtv':'tv-mtv', 'mtv+':'tv-mtv+'};
+  const tvBadge = m.tv
+    ? `<span class="tv-badge ${tvClass[m.tv] || 'tv-yle'}">${tvMap[m.tv] || m.tv}</span>`
+    : '';
+
+  // Score section
+  let scoreHtml = '';
+  if(act && act.home_score !== null) {
+    const statusMap = {FT:'Päättynyt',AET:'Jatkoaika',PEN:'Rangaistuspotkut','1H':'1. puoliaika','2H':'2. puoliaika',HT:'Puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'};
+    const statusLabel = statusMap[act.status] || act.status || 'Päättynyt';
+    scoreHtml = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span class="match-score-big">${act.home_score} – ${act.away_score}</span>
+      <span style="font-size:12px;color:${isLive?'#dc2626':'var(--green-mid)'};font-weight:600">${statusLabel}</span>
+    </div>`;
+  }
+
+  // Always show all predictions (own + others)
+  const myPred = me ? predictions[`${m.id}_${me.id}`] : null;
+  const hasResult = act && act.home_score !== null;
+
+  const chips = players.map(p => {
+    const pred = predictions[`${m.id}_${p.id}`];
+    const pts = hasResult ? getPoints(m.id, p.id) : null;
+    const isMe = me && p.id === me.id;
+    const label = pred && pred.home_score !== null ? `${pred.home_score}–${pred.away_score}` : '–';
+    const cls = pts === 3 ? 'correct-exact' : pts === 2 ? 'correct-winner' : pts === 0 ? 'wrong' : 'pending';
+    const ptsLabel = pts === 3 ? ' ✓' : pts === 2 ? ' ✓' : pts === 0 ? ' ✗' : '';
+    return `<span class="pred-chip ${cls}">${isMe ? '<strong>' : ''}${p.name.split(' ')[0]}${isMe ? '</strong>' : ''}: ${label}${ptsLabel}</span>`;
+  }).join('');
+
+  const predsHtml = players.length
+    ? `<div class="pred-comparison">${chips}</div>`
+    : '';
+
+  // Upcoming: show lock warning if not yet predicted
+  let upcomingHint = '';
+  if(type === 'upcoming' && !locked && (!myPred || myPred.home_score === null)) {
+    upcomingHint = `<div style="font-size:12px;color:#f59e0b;margin-bottom:6px">⚠️ Et ole vielä veikannut</div>`;
+  }
+
+  // Live match border highlight
+  const liveStyle = isLive
+    ? 'border:2px solid #dc2626;box-shadow:0 0 0 3px rgba(220,38,38,0.1)'
+    : '';
+
+  return `<div class="match" style="${liveStyle}">
+    <div class="match-head" style="${isLive?'background:#fff5f5':''}">
+      <span class="match-teams">${m.home} – ${m.away}${tvBadge}</span>
+      <span class="match-date ${type === 'upcoming' && !locked ? 'upcoming-ko' : ''}">${timeLabel}</span>
+    </div>
+    <div class="match-body">
+      ${scoreHtml}
+      ${upcomingHint}
+      ${predsHtml}
+    </div>
+  </div>`;
+}
+
+function buildPhaseTabs(cid, cur, fn) {
+  document.getElementById(cid).innerHTML = PHASES.map(p=>
+    `<button class="phase-tab ${p.key===cur?'active':''}" onclick="${fn}('${p.key}')">${p.label}</button>`
+  ).join('');
+}
+
+// ── PREDICTIONS ───────────────────────────────────────────────────────────────
+
+let currentGroup = null; // null = show all groups
+
+function setPredPhase(ph) {
+  currentPredPhase = ph;
+  currentGroup = null;
+  renderGroupTabs();
+  renderPredictions();
+}
+
+function setGroupFilter(g) {
+  currentGroup = currentGroup === g ? null : g; // toggle
+  renderGroupTabs();
+  renderPredictions();
+}
+
+function renderGroupTabs() {
+  const container = document.getElementById('predictGroupTabs');
+  if(currentPredPhase !== 'group') {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  const groups = [...new Set(MATCHES.group.map(m => m.group))].sort();
+  container.innerHTML = groups.map(g =>
+    `<button class="group-tab ${currentGroup===g?'active':''}" onclick="setGroupFilter('${g}')">Lohko ${g}</button>`
+  ).join('');
+}
+
+function isTBDMatch(m) {
+  // A match is "TBD" if either team name is a placeholder pattern
+  // like "1A", "2B", "3. sija" rather than a real team name
+  const placeholderPattern = /^[123]\.?\s?[A-L]?$|^\d[A-L]$|^3\.\s?sija$|^V\s|^H\s/;
+  return placeholderPattern.test(m.home) || placeholderPattern.test(m.away);
+}
+
+function renderPredictions() {
+  buildPhaseTabs('predictPhaseTabs', currentPredPhase, 'setPredPhase');
+  renderGroupTabs();
+  if(!me) return;
+  let matches = MATCHES[currentPredPhase]||[];
+  if(currentPredPhase === 'group' && currentGroup) {
+    matches = matches.filter(m => m.group === currentGroup);
+  }
+  const c = document.getElementById('predictContent');
+  const isKnockout = currentPredPhase !== 'group';
+  let html='', lastGroup='';
+  matches.forEach(m => {
+    if(m.group!==lastGroup) { html+=`<div class="group-tag">${isKnockout ? m.group : 'Lohko '+m.group}</div>`; lastGroup=m.group; }
+    const myPred = predictions[`${m.id}_${me.id}`];
+    const act = actuals[m.id];
+    const pts = getPoints(m.id, me.id);
+    const locked = isLocked(m);
+    const timeLabel = kickoffLabel(m);
+    const myWinner = myPred?.winner || null;
+    const isTBD = isKnockout && isTBDMatch(m);
+
+    const otherPills = players.filter(p=>p.id!==me.id).map(p=>{
+      const op = predictions[`${m.id}_${p.id}`];
+      if(!op || op.home_score===null) return '';
+      const winnerLabel = isKnockout && op.winner ? ` (${op.winner==='H'?m.home.split(' ')[0]:m.away.split(' ')[0]})` : '';
+      return `<span class="other-pill"><strong>${p.name.split(' ')[0]}</strong> ${op.home_score}–${op.away_score}${winnerLabel}</span>`;
+    }).filter(Boolean).join('');
+
+    const ptsBadge = isKnockout
+      ? (pts===3?'3 p ✓':pts===2?'2 p ✓':pts!==null?'0 p':'')
+      : (pts===3?'3 p ✓ (tarkka)':pts===2?'2 p ✓':pts!==null?'0 p':'');
+    const ptsHtml = pts!==null ? `<span class="pts-badge pts-${pts}">${ptsBadge}</span>` : '';
+    const lockHtml = locked ? `<span style="font-size:11px;color:var(--text-muted);margin-left:auto">🔒 Lukittu</span>` : '';
+    const inputStyle = locked ? 'opacity:0.5;pointer-events:none;background:#f0f0f0' : '';
+
+    // Winner buttons for knockout matches
+    const winnerHtml = isKnockout ? `
+      <div class="winner-btns">
+        <button class="winner-btn ${myWinner==='H'?'selected-H':''}" ${locked?'disabled':''}
+          onclick="saveWinner('${m.id}','H')">${m.home}</button>
+        <button class="winner-btn ${myWinner==='A'?'selected-A':''}" ${locked?'disabled':''}
+          onclick="saveWinner('${m.id}','A')">${m.away}</button>
+      </div>` : '';
+
+    // Show actual result with ET/PEN indicator
+    const actLabel = act&&act.home_score!==null
+      ? `${act.home_score}–${act.away_score}${['AET','PEN'].includes(act.status)?' ('+act.status+')':''}`
+      : '';
+
+    html += `<div class="match${locked?' locked':''}">
+      <div class="match-head">
+        <span class="match-teams">${m.home} – ${m.away}</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          ${actLabel?`<span style="font-size:12px;font-weight:700;color:var(--text-muted)">${actLabel}</span>`:''}
+          <span class="match-date" style="${locked?'color:#f59e0b':''}">${timeLabel}</span>
+        </div>
+      </div>
+      <div class="match-body">
+        ${isTBD ? `
+          <div style="font-size:13px;color:var(--text-muted);font-style:italic;padding:8px 0;text-align:center;background:var(--bg);border-radius:var(--radius-sm)">
+            ⏳ Joukkueet selviävät alkulohkojen päätyttyä
+          </div>
+        ` : `
+          ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Voittaja:</div>`:''}
+          ${winnerHtml}
+          ${isKnockout?`<div style="font-size:12px;color:var(--text-muted);margin:8px 0 4px">Varsinaisen peliajan tulos:</div>`:''}
+          <div class="my-pred" style="${isKnockout?'margin-top:4px':''}">
+            <div class="score-box">
+              <input type="number" min="0" max="20" value="${myPred&&myPred.home_score!==null?myPred.home_score:''}" placeholder="?"
+                ${locked?'disabled':''} style="${inputStyle}"
+                onchange="savePred('${m.id}','home',this.value)">
+              <span class="score-sep">–</span>
+              <input type="number" min="0" max="20" value="${myPred&&myPred.away_score!==null?myPred.away_score:''}" placeholder="?"
+                ${locked?'disabled':''} style="${inputStyle}"
+                onchange="savePred('${m.id}','away',this.value)">
+            </div>
+            ${ptsHtml}${lockHtml}
+          </div>
+          ${otherPills?`<div class="others-preds">${otherPills}</div>`:''}
+        `}
+      </div>
+    </div>`;
+  });
+  c.innerHTML = html || '<div class="loading">Ei otteluita.</div>';
+}
+
+async function savePred(matchId, side, val) {
+  if(!me) return;
+  // Double-check lock on save (client-side safety net)
+  const match = Object.values(MATCHES).flat().find(m=>m.id===matchId);
+  if(match && isLocked(match)) return;
+  setSyncState('syncing');
+  const key=`${matchId}_${me.id}`;
+  if(!predictions[key]) predictions[key]={match_id:matchId,player_id:me.id,home_score:null,away_score:null};
+  predictions[key][side==='home'?'home_score':'away_score'] = val===''?null:parseInt(val);
+  try {
+    await db.from('predictions').upsert({
+      match_id:matchId, player_id:me.id,
+      home_score:predictions[key].home_score,
+      away_score:predictions[key].away_score,
+      updated_at:new Date().toISOString()
+    },{onConflict:'player_id,match_id'});
+    setSyncState('ok');
+  } catch(e){setSyncState('error');}
+}
+
+async function saveWinner(matchId, side) {
+  if(!me) return;
+  const match = Object.values(MATCHES).flat().find(m=>m.id===matchId);
+  if(match && isLocked(match)) return;
+  setSyncState('syncing');
+  const key=`${matchId}_${me.id}`;
+  if(!predictions[key]) predictions[key]={match_id:matchId,player_id:me.id,home_score:null,away_score:null,winner:null};
+  // Toggle: clicking same button again deselects
+  predictions[key].winner = predictions[key].winner === side ? null : side;
+  try {
+    await db.from('predictions').upsert({
+      match_id:matchId, player_id:me.id,
+      home_score:predictions[key].home_score,
+      away_score:predictions[key].away_score,
+      winner:predictions[key].winner,
+      updated_at:new Date().toISOString()
+    },{onConflict:'player_id,match_id'});
+    setSyncState('ok');
+    renderPredictions();
+  } catch(e){setSyncState('error');}
+}
+
+// ── RESULTS ───────────────────────────────────────────────────────────────────
+
+function setResultPhase(ph) { currentResultPhase=ph; renderResults(); }
+
+function renderResults() {
+  buildPhaseTabs('resultPhaseTabs', currentResultPhase, 'setResultPhase');
+  const matches = MATCHES[currentResultPhase]||[];
+  const c = document.getElementById('resultsContent');
+  const played = matches.filter(m => actuals[m.id]);
+  const pending = matches.filter(m => !actuals[m.id]);
+  let html='', lastGroup='';
+
+  if(played.length === 0 && pending.length > 0) {
+    html += '<div class="info" style="margin-bottom:1rem">Tuloksia ei vielä – päivittyy automaattisesti 30 min välein API:sta.</div>';
+  }
+
+  matches.forEach(m => {
+    if(m.group!==lastGroup){html+=`<div class="group-tag">Lohko ${m.group}</div>`;lastGroup=m.group;}
+    const act=actuals[m.id];
+    const timeLabel = kickoffLabel(m);
+    const statusLabel = act?.status ? {FT:'Päättynyt',AET:'Päättynyt (jatkoaika)',PEN:'Päättynyt (rangaistuspotkut)','1H':'1. puoliaika','HT':'Puoliaika','2H':'2. puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'}[act.status] ?? act.status : null;
+
+    if(act && act.home_score !== null) {
+      html+=`<div class="match">
+        <div class="match-head">
+          <span class="match-teams">${m.home} – ${m.away}</span>
+          <span class="match-date" style="color:var(--green-mid)">${statusLabel||'Päättynyt'}</span>
+        </div>
+        <div class="match-body" style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:28px;font-weight:700;letter-spacing:2px">${act.home_score} – ${act.away_score}</span>
+          <span style="font-size:12px;color:var(--text-muted)">${m.home} vs ${m.away}</span>
+        </div>
+      </div>`;
+    } else {
+      html+=`<div class="match" style="opacity:0.6">
+        <div class="match-head">
+          <span class="match-teams">${m.home} – ${m.away}</span>
+          <span class="match-date">${timeLabel}</span>
+        </div>
+        <div class="match-body" style="font-size:13px;color:var(--text-muted)">Tulos ei vielä saatavilla</div>
+      </div>`;
+    }
+  });
+  c.innerHTML = html||'<div class="loading">Ei otteluita.</div>';
+}
+
+// ── SCORES ────────────────────────────────────────────────────────────────────
+
+function isKnockoutMatch(matchId) {
+  return !MATCHES.group.find(m => m.id === matchId);
+}
+
+function getActualWinner(act) {
+  // For FT: winner from score; for AET: score after ET; for PEN: score usually equal, need explicit winner
+  if(!act) return null;
+  if(act.home_score > act.away_score) return 'H';
+  if(act.home_score < act.away_score) return 'A';
+  // Equal score = went to PEN (in knockout)
+  return 'PEN';
+}
+
+function getPoints(matchId, playerId) {
+  const act = actuals[matchId];
+  if(!act || act.home_score===null || act.away_score===null) return null;
+  const pred = predictions[`${matchId}_${playerId}`];
+  if(!pred) return null;
+
+  const knockout = isKnockoutMatch(matchId);
+
+  if(knockout) {
+    // Knockout: winner (2p) + correct normal-time score (+1p) = max 3p
+    if(!pred.winner) return null; // must pick a winner
+
+    // Determine actual winner (who won incl. AET/PEN)
+    const actWinner = getActualWinner(act);
+
+    // For PEN: actWinner is 'PEN' (scores equal), winner determined externally
+    // API for PEN usually returns equal scores - we need to check who advanced
+    // We compare pred.winner against actual score direction or PEN result
+    // Since API may return 1-1 AET and we don't have PEN winner explicitly,
+    // we use: if score equal after AET, check if API marked home or away as winner
+    // For now, treat PEN as: correct if score was equal AND they picked the right team
+    // The API status 'PEN' with equal scores means we check home_score vs away_score
+    // If still equal, we can't determine winner from score alone - skip winner pts
+    const normalTimeActH = act.home_score;
+    const normalTimeActA = act.away_score;
+    const actualNormalWinner = normalTimeActH > normalTimeActA ? 'H'
+                             : normalTimeActH < normalTimeActA ? 'A' : null; // null = went to AET/PEN
+
+    // Winner points: pred.winner must match who actually won (incl. AET/PEN)
+    // For AET/PEN we compare against the score direction after extra time
+    // If scores still equal (PEN), we give winner pts if API final result shows who won
+    // Simplest: use score after full time (inc AET) for winner determination
+    const correctWinner = pred.winner === (normalTimeActH > normalTimeActA ? 'H'
+                        : normalTimeActH < normalTimeActA ? 'A'
+                        : pred.winner); // PEN: can't determine from score, award if picked
+
+    if(!correctWinner && actualNormalWinner !== null) return 0;
+
+    let pts = 2; // correct winner
+
+    // +1p for exact normal-time score (FT before AET)
+    if(pred.home_score !== null && pred.away_score !== null &&
+       pred.home_score === act.home_score && pred.away_score === act.away_score) {
+      pts += 1;
+    }
+    return pts;
+
+  } else {
+    // Group stage: same as before
+    if(pred.home_score===null || pred.away_score===null) return null;
+    const predW = pred.home_score > pred.away_score ? 'H'
+                : pred.home_score < pred.away_score ? 'A' : 'D';
+    const actW  = act.home_score  > act.away_score  ? 'H'
+                : act.home_score  < act.away_score   ? 'A' : 'D';
+    if(predW !== actW) return 0;
+    return pred.home_score===act.home_score && pred.away_score===act.away_score ? 3 : 2;
+  }
+}
+
+let scoreFilter = 'all'; // 'all' | phase key | 'group:X'
+
+function buildScoreFilters() {
+  const row = document.getElementById('scoreFilterRow');
+  if(!row) return;
+  const groups = [...new Set(MATCHES.group.map(m=>m.group))].sort();
+  const phaseLabels = {r32:'32 parasta',r16:'16 parasta',qf:'Neljännesvälierät',sf:'Välierät',final:'Finaali'};
+
+  let html = `<span class="score-filter-section">Vaihe:</span>
+    <button class="score-filter-btn ${scoreFilter==='all'?'active':''}" onclick="setScoreFilter('all')">Kaikki</button>`;
+  Object.entries(phaseLabels).forEach(([k,v])=>{
+    const hasResults = MATCHES[k].some(m=>actuals[m.id]&&actuals[m.id].home_score!==null);
+    if(hasResults) html+=`<button class="score-filter-btn ${scoreFilter===k?'active':''}" onclick="setScoreFilter('${k}')">${v}</button>`;
+  });
+  html+=`<span class="score-filter-section" style="margin-left:4px">Lohko:</span>`;
+  groups.forEach(g=>{
+    const key='group:'+g;
+    const hasResults = MATCHES.group.filter(m=>m.group===g).some(m=>actuals[m.id]&&actuals[m.id].home_score!==null);
+    if(hasResults) html+=`<button class="score-filter-btn ${scoreFilter===key?'active':''}" onclick="setScoreFilter('${key}')">Lohko ${g}</button>`;
+  });
+  row.innerHTML = html;
+}
+
+function setScoreFilter(f) {
+  scoreFilter = f;
+  renderScores();
+}
+
+function getFilteredMatches() {
+  if(scoreFilter === 'all') return Object.values(MATCHES).flat();
+  if(scoreFilter.startsWith('group:')) {
+    const g = scoreFilter.split(':')[1];
+    return MATCHES.group.filter(m=>m.group===g);
+  }
+  return MATCHES[scoreFilter]||[];
+}
+
+function renderScores() {
+  buildScoreFilters();
+  const filtered = getFilteredMatches();
+  const medals=['🥇','🥈','🥉',...Array.from({length:17},(_,i)=>`${i+4}.`)];
+  const stats=players.map(p=>{
+    let total=0,exact=0,winner=0,played=0;
+    filtered.forEach(m=>{const pts=getPoints(m.id,p.id);if(pts===null)return;played++;total+=pts;if(pts===3)exact++;if(pts===2)winner++;});
+    return{...p,total,exact,winner,played};
+  }).sort((a,b)=>b.total-a.total||b.exact-a.exact);
+
+  // Filter label
+  const filterLabels = {
+    all:'Kaikki ottelut',r32:'32 parhaan kierros',r16:'16 parhaan kierros',
+    qf:'Neljännesvälierät',sf:'Välierät',final:'Finaali'
+  };
+  const label = scoreFilter.startsWith('group:')
+    ? 'Lohko '+scoreFilter.split(':')[1]
+    : filterLabels[scoreFilter]||scoreFilter;
+
+  let html=`<div class="scoreboard">
+    <div class="sb-head"><div></div><div>Pelaaja</div><div style="text-align:center">Pisteet</div><div style="text-align:center">Tarkka (3p)</div><div style="text-align:center">Voittaja (2p)</div></div>`;
+  stats.forEach((p,i)=>{
+    const isMe=me&&p.id===me.id;
+    // Only show medal for players with points
+    const medal = p.total > 0 ? (medals[i]||'') : '';
+    html+=`<div class="sb-row ${i===0&&p.total>0?'rank1':''} ${isMe?'me':''}">
+      <div class="sb-rank">${medal}</div>
+      <div class="sb-name">${p.name}${isMe?'<span class="sb-me-tag">sinä</span>':''}</div>
+      <div class="sb-pts">${p.total}</div>
+      <div class="sb-sub">${p.exact}</div>
+      <div class="sb-sub">${p.winner}</div>
+    </div>`;
+  });
+  html+='</div>';
+  const played=filtered.filter(m=>actuals[m.id]&&actuals[m.id].home_score!==null).length;
+  html+=`<div class="info" style="margin-top:1rem"><strong>${label}</strong> &nbsp;·&nbsp; ${played} / ${filtered.length} ottelua kirjattu &nbsp;·&nbsp; Voittaja = 2 p &nbsp;·&nbsp; Tarkka = 3 p</div>`;
+  document.getElementById('scoresContent').innerHTML=html;
+}
+
+// ── ADMIN ─────────────────────────────────────────────────────────────────────
+
+function renderAdminSetup() {
+  const input = document.getElementById('myNameInput');
+  if(input && me) input.value = me.name;
+}
+
+async function saveMyName() {
+  if(!me) return;
+  const input = document.getElementById('myNameInput');
+  const name = input?.value.trim();
+  if(!name || name.length < 2) return;
+  setSyncState('syncing');
+  try {
+    await db.from('players').update({name}).eq('id', me.id);
+    me.name = name;
+    const p = players.find(x=>x.id===me.id);
+    if(p) p.name = name;
+    updateHeaderUser();
+    setSyncState('ok');
+    const msg=document.getElementById('savedMsg');
+    msg.style.display='block';
+    setTimeout(()=>msg.style.display='none',3000);
+  } catch(e){setSyncState('error');}
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+let realtimeChannel = null;
+
+function setupRealtime() {
+  if(realtimeChannel) db.removeChannel(realtimeChannel);
+
+  realtimeChannel = db.channel('wc26-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'actuals' },
+      payload => {
+        // Update local actuals cache
+        const a = payload.new;
+        if(a && a.match_id !== undefined) {
+          actuals[a.match_id] = a;
+          // Refresh whichever page is currently visible
+          refreshCurrentPage();
+        }
+      }
+    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' },
+      payload => {
+        const p = payload.new;
+        if(p && p.match_id && p.player_id) {
+          predictions[`${p.match_id}_${p.player_id}`] = p;
+          refreshCurrentPage();
+        }
+      }
+    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'players' },
+      payload => {
+        const p = payload.new;
+        if(p) {
+          const idx = players.findIndex(x => x.id === p.id);
+          if(idx >= 0) players[idx] = {...players[idx], ...p};
+          else players.push(p);
+          refreshCurrentPage();
+        }
+      }
+    )
+    .subscribe(status => {
+      if(status === 'SUBSCRIBED') setSyncState('ok');
+      if(status === 'CHANNEL_ERROR') setSyncState('error');
+    });
+}
+
+function refreshCurrentPage() {
+  const active = document.querySelector('.page.active');
+  if(!active) return;
+  const id = active.id;
+  if(id === 'page-today') renderToday();
+  else if(id === 'page-predict') renderPredictions();
+  else if(id === 'page-results') renderResults();
+  else if(id === 'page-scores') renderScores();
+}
+
+async function init() {
+  // ?reset=1 manually clears stale localStorage and reloads cleanly
+  if(new URLSearchParams(window.location.search).get('reset') === '1') {
+    localStorage.removeItem('mm26_myId');
+    localStorage.removeItem('mm26_appVersion');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  // Automatic version check: if APP_VERSION changed since last visit,
+  // force a clean re-login. This prevents the app getting stuck after
+  // a deploy that changes player IDs, schema, or login logic.
+  const savedVersion = localStorage.getItem('mm26_appVersion');
+  if(savedVersion !== APP_VERSION) {
+    localStorage.removeItem('mm26_myId');
+    localStorage.setItem('mm26_appVersion', APP_VERSION);
+  }
+
+  // Load players with retry – avoids a transient network hiccup on page
+  // load being mistaken for "no such player" and wiping a valid session
+  let loaded = false;
+  for(let attempt = 1; attempt <= 3 && !loaded; attempt++) {
+    try {
+      await loadPlayersForLogin();
+      loaded = true;
+    } catch(e) {
+      console.error(`init: loadPlayersForLogin attempt ${attempt} failed`, e);
+      if(attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500));
+    }
+  }
+
+  if(!loaded) {
+    // Could not reach the database after 3 tries – show retry UI, don't touch localStorage
+    const sub = document.getElementById('loginSub');
+    const c = document.getElementById('loginPlayerList');
+    if(sub) sub.textContent = 'Yhteysvirhe';
+    if(c) c.innerHTML = `<div style="font-size:13px;color:#991b1b;text-align:center;padding:0.5rem">
+      Tietokantaan ei saatu yhteyttä.<br>
+      <button onclick="location.reload()" style="margin-top:8px;padding:6px 14px;background:var(--green);color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer">
+        Yritä uudelleen
+      </button>
+    </div>`;
+    return;
+  }
+
+  const savedId = localStorage.getItem('mm26_myId');
+  if(savedId) {
+    const saved = players.find(p => p.id === savedId);
+    if(saved) {
+      // Known player – skip login overlay
+      me = saved;
+      document.getElementById('loginOverlay').style.display = 'none';
+      updateHeaderUser();
+      try {
+        await loadAll();
+        setupRealtime();
+      } catch(e) {
+        console.error('init: loadAll/realtime failed', e);
+        setSyncState('error');
+      }
+      return;
+    } else {
+      // Saved ID no longer in DB – clear stale key and show login
+      localStorage.removeItem('mm26_myId');
+      const sub = document.getElementById('loginSub');
+      if(sub) sub.textContent = 'Valitse nimesi uudelleen';
+    }
+  }
+  // Show login overlay – it's already visible by default
+}
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script>
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  init();
+</script>
+</body>
+</html>
+  main { max-width: 720px; margin: 0 auto; padding: 1.25rem; }
+  .page { display: none; }
+  .page.active { display: block; }
+  h2 { font-size: 17px; font-weight: 600; margin-bottom: 1rem; }
+
+  /* Today page */
+  .today-section { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 1.25rem 0 0.6rem; display: flex; align-items: center; gap: 8px; }
+  .today-section::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .tv-badge { display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:6px; }
+  .tv-yle { background:#e8f5ee;color:#1a7a4a;border:1px solid #2e9e62; }
+  .tv-mtv { background:#fff3e8;color:#b45309;border:1px solid #f59e0b; }
+  .tv-mtv\+ { background:#fce8f5;color:#9a1a6a;border:1px solid #d946b1; }
+  .live-badge { background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; animation: pulse 1.5s infinite; }
+  .match-score-big { font-size: 26px; font-weight: 700; letter-spacing: 1px; color: var(--text); }
+  .pred-comparison { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .pred-chip { display: flex; align-items: center; gap: 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; }
+  .pred-chip.correct-exact { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .pred-chip.correct-winner { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+  .pred-chip.wrong { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+  .pred-chip.pending { color: var(--text-muted); }
+  .upcoming-ko { font-size: 13px; color: var(--green); font-weight: 500; }
+  .empty-today { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 14px; }
+  .score-filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .score-filter-btn { padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .score-filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
+  .score-filter-section { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 2px; align-self: center; }
+  .info { background: var(--green-light); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--green); margin-bottom: 1rem; line-height: 1.6; }
+  .phase-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .phase-tab { padding: 6px 13px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .phase-tab.active { background: var(--green-light); color: var(--green); border-color: var(--green-mid); }
+  .group-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .group-tab { padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); }
+  .group-tab.active { background: var(--green); color: white; border-color: var(--green); }
+  .group-tag { display: inline-block; background: var(--green-light); color: var(--green); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; margin: 0.75rem 0 0.5rem; }
+
+  .match.locked { opacity: 0.85; }
+  .match.locked .match-head { background: #fafaf8; }
+  .match-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 1rem; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .match-teams { font-size: 14px; font-weight: 600; }
+  .match-date { font-size: 12px; color: var(--text-muted); }
+  .match-body { padding: 0.875rem 1rem; }
+
+  /* My prediction row */
+  .my-pred { display: flex; align-items: center; gap: 10px; }
+  .score-box { display: flex; align-items: center; gap: 6px; }
+  .winner-btns { display:flex;gap:6px;margin-top:8px; }
+  .winner-btn { flex:1;padding:7px 10px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:none;color:var(--text-muted);transition:all 0.15s; }
+  .winner-btn.selected-H { background:var(--green-light);color:var(--green);border-color:var(--green-mid);font-weight:600; }
+  .winner-btn.selected-A { background:var(--green-light);color:var(--green);border-color:var(--green-mid);font-weight:600; }
+  .winner-btn:disabled { opacity:0.5;pointer-events:none; }
+  .score-box input { width: 46px; padding: 8px; text-align: center; font-size: 16px; font-weight: 600; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .score-box input:focus { outline: none; border-color: var(--green-mid); background: white; }
+  .score-sep { color: var(--text-muted); font-size: 16px; font-weight: 300; }
+  .others-preds { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+  .other-pill { font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; color: var(--text-muted); }
+  .other-pill strong { color: var(--text); }
+  .pts-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; margin-left: auto; }
+  .pts-3 { background: #dcfce7; color: #166534; }
+  .pts-1 { background: #fef9c3; color: #854d0e; }
+  .pts-0 { background: #fee2e2; color: #991b1b; }
+
+  /* Results */
+  .actual-inputs { display: flex; align-items: center; gap: 8px; }
+  .actual-inputs input { width: 46px; padding: 8px; text-align: center; font-size: 16px; font-weight: 600; border: 1.5px solid #fbbf24; border-radius: var(--radius-sm); background: #fffbeb; color: var(--text); }
+  .actual-inputs input:focus { outline: none; border-color: var(--gold); background: white; }
+
+  /* Scoreboard */
+  .scoreboard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .sb-head { display: grid; grid-template-columns: 36px 1fr 56px 44px 44px; gap: 8px; padding: 10px 1rem; background: var(--bg); font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); }
+  .sb-row { display: grid; grid-template-columns: 36px 1fr 56px 44px 44px; gap: 8px; padding: 12px 1rem; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.15s; }
+  .sb-row:last-child { border-bottom: none; }
+  .sb-row.me { background: var(--green-light); }
+  .sb-row.rank1 { background: var(--gold-light); }
+  .sb-row.rank1.me { background: linear-gradient(135deg, var(--gold-light), var(--green-light)); }
+  .sb-rank { font-size: 16px; text-align: center; }
+  .sb-name { font-size: 15px; font-weight: 600; }
+  .sb-me-tag { font-size: 10px; font-weight: 600; background: var(--green); color: white; padding: 1px 6px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+  .sb-pts { font-size: 20px; font-weight: 700; color: var(--green); text-align: center; }
+  .sb-sub { font-size: 13px; color: var(--text-muted); text-align: center; }
+  .loading { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+
+  /* Admin tab */
+  .player-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+  .player-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .player-field input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg); color: var(--text); }
+  .player-field input:focus { outline: none; border-color: var(--green-mid); }
+  .btn { padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; border: none; }
+  .btn-green { background: var(--green); color: white; }
+  .saved-msg { font-size: 13px; color: var(--green-mid); margin-top: 0.75rem; display: none; }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-ball">⚽</div>
+    <div class="login-title">MM 2026 Veikkaus</div>
+    <div class="login-sub" id="loginSub">Kuka sinä olet?</div>
+
+    <!-- Step 1: existing players to pick from -->
+    <div id="loginStep1">
+      <div class="player-btn-grid" id="loginPlayerList"></div>
+      <div id="loginJoinRow" style="display:none;margin-top:0.5rem">
+        <button class="player-btn" style="justify-content:center;color:var(--green);border-color:var(--green-mid)" onclick="showJoinForm()">
+          <div class="avatar" style="background:var(--green);color:white">+</div>
+          <span>Liity mukaan uutena pelaajana</span>
+        </button>
+      </div>
+      <button class="btn-login" id="loginBtn" onclick="confirmLogin()" style="margin-top:1rem">Aloita veikkaaminen</button>
+    </div>
+
+    <!-- Step 2: new player name entry -->
+    <div id="loginStep2" style="display:none">
+      <div style="text-align:left;margin-bottom:0.5rem">
+        <label class="login-label">Kirjoita nimesi</label>
+        <input type="text" id="newNameInput" placeholder="Etunimi Sukunimi"
+          style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;background:#f7f8f6;color:#1a1f18;margin-bottom:0.75rem"
+          oninput="document.getElementById('joinBtn').classList.toggle('ready', this.value.trim().length>1)"
+          onkeydown="if(event.key==='Enter')joinAsNew()">
+      </div>
+      <button class="btn-login ready" id="joinBtn" onclick="joinAsNew()">Liity mukaan</button>
+      <button onclick="showStep1()" style="display:block;width:100%;margin-top:0.75rem;background:none;border:none;font-size:13px;color:var(--text-muted);cursor:pointer">← Takaisin</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="header-title">⚽ MM 2026 – Perheveikkaus</div>
+      <div class="header-sub">FIFA World Cup · USA / Kanada / Meksiko</div>
+    </div>
+    <div class="header-user">
+      <div class="user-avatar" id="headerAvatar"></div>
+      <div>
+        <div class="user-name" id="headerName"></div>
+        <button class="switch-btn" onclick="showPage('admin', null)">muokkaa nimeä</button>
+        <button class="switch-btn" onclick="switchUser()" style="margin-left:8px">vaihda</button>
+      </div>
+      <span class="sync-dot" id="syncDot" style="margin-left:4px"></span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="nav-inner">
+    <button class="nav-tab active" onclick="showPage('today',this)">Tänään</button>
+    <button class="nav-tab" onclick="showPage('predict',this)">Veikkaukset</button>
+    <button class="nav-tab" onclick="showPage('results',this)">Tulokset</button>
+    <button class="nav-tab" onclick="showPage('scores',this)">Pisteet</button>
+  </div>
+</nav>
+
+<main>
+  <div id="page-today" class="page active">
+    <div id="todayContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-predict" class="page">
+    <h2>Omat veikkaukseni</h2>
+    <div class="info">
+  <strong>Alkulohkot:</strong> Oikea voittaja/tasapeli = 2 p &nbsp;·&nbsp; Tarkka tulos = 3 p &nbsp;·&nbsp; Väärä = 0 p<br>
+  <strong>Pudotuspelit:</strong> Veikkaa ensin voittaja (2 p) + varsinaisen peliajan tulos (1 p lisää, max 3 p). Tulos tarkoittaa aina normaaliajan tulosta, ei jatkoajan tai penaltien.
+</div>
+    <div class="phase-tabs" id="predictPhaseTabs"></div>
+    <div class="group-tabs" id="predictGroupTabs" style="display:none"></div>
+    <div id="predictContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-results" class="page">
+    <h2>Todelliset tulokset</h2>
+    <div class="info">Tulokset päivittyvät automaattisesti API:sta 30 minuutin välein. Pisteet lasketaan heti kun tulos on saatavilla.</div>
+    <div class="phase-tabs" id="resultPhaseTabs"></div>
+    <div id="resultsContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-scores" class="page">
+    <h2>Pistetaulukko</h2>
+    <div class="score-filter-row" id="scoreFilterRow"></div>
+    <div id="scoresContent"><div class="loading">Ladataan…</div></div>
+  </div>
+
+  <div id="page-admin" class="page">
+    <h2>Omat tiedot</h2>
+    <div class="info">Voit muuttaa omaa nimeäsi tässä. Muutos näkyy kaikille heti.</div>
+    <div style="margin-bottom:1rem">
+      <div class="player-field" style="max-width:280px">
+        <label>Nimesi</label>
+        <input type="text" id="myNameInput" placeholder="Nimi">
+      </div>
+    </div>
+    <button class="btn btn-green" onclick="saveMyName()">Tallenna nimi</button>
+    <div class="saved-msg" id="savedMsg">✓ Tallennettu!</div>
+  </div>
+</main>
+
+<script>
 var SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
 // db is initialised after Supabase library loads (see bottom of file)
