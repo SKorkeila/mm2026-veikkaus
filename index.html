@@ -293,7 +293,7 @@
 // Bump this string whenever a deploy changes login logic, player IDs,
 // or anything else that could leave an old session in a broken state.
 // Changing it forces every browser to do a clean re-login on next visit.
-var APP_VERSION = '2026-06-29-debug';
+var APP_VERSION = '2026-06-30-penaltyfix';
 
 var SUPABASE_URL = 'https://ttusbkywlsufdtxdjbma.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0dXNia3l3bHN1ZmR0eGRqYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEyNjQsImV4cCI6MjA5NjY4NzI2NH0.WNaFdEMVTNjgNtseCvJLdRjyBc6YIcqwgpeMg9cBbFo';
@@ -519,12 +519,6 @@ async function loadPlayersForLogin() {
     if(error) throw error;
     players = data || [];
     renderLoginList();
-    // Persistent debug line so we can see exactly what was loaded,
-    // without needing devtools open. Safe to remove once diagnosed.
-    const dbg = document.createElement('div');
-    dbg.style.cssText = 'font-size:10px;color:#999;text-align:center;margin-top:8px';
-    dbg.textContent = `[debug] ${players.length} pelaajaa ladattu, renderLoginList suoritettu`;
-    c.appendChild(dbg);
   } catch(e) {
     console.error('loadPlayersForLogin failed:', e?.message || e?.code || JSON.stringify(e));
     if(sub) sub.textContent = 'Yhteysvirhe';
@@ -818,11 +812,20 @@ function buildTodayCard(m, type) {
 
   // Score section
   let scoreHtml = '';
+  let homeNameHtml = m.home;
+  let awayNameHtml = m.away;
   if(act && act.home_score !== null) {
     const statusMap = {FT:'Päättynyt',AET:'Jatkoaika',PEN:'Rangaistuspotkut','1H':'1. puoliaika','2H':'2. puoliaika',HT:'Puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'};
     const statusLabel = statusMap[act.status] || act.status || 'Päättynyt';
-    scoreHtml = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+    const actualWinner = isKnockoutMatch(m.id) ? getActualWinner(act) : null;
+    if(actualWinner === 'H') homeNameHtml = `<strong>${m.home}</strong>`;
+    if(actualWinner === 'A') awayNameHtml = `<strong>${m.away}</strong>`;
+    const penLabel = (act.status === 'PEN' && act.pen_home !== null && act.pen_away !== null)
+      ? `<span style="font-size:12px;color:var(--text-muted)">(${act.pen_home}–${act.pen_away} rp.)</span>`
+      : '';
+    scoreHtml = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <span class="match-score-big">${act.home_score} – ${act.away_score}</span>
+      ${penLabel}
       <span style="font-size:12px;color:${isLive?'#dc2626':'var(--green-mid)'};font-weight:600">${statusLabel}</span>
     </div>`;
   }
@@ -858,7 +861,7 @@ function buildTodayCard(m, type) {
 
   return `<div class="match" style="${liveStyle}">
     <div class="match-head" style="${isLive?'background:#fff5f5':''}">
-      <span class="match-teams">${m.home} – ${m.away}${tvBadge}</span>
+      <span class="match-teams">${homeNameHtml} – ${awayNameHtml}${tvBadge}</span>
       <span class="match-date ${type === 'upcoming' && !locked ? 'upcoming-ko' : ''}">${timeLabel}</span>
     </div>
     <div class="match-body">
@@ -960,13 +963,16 @@ function renderPredictions() {
       </div>` : '';
 
     // Show actual result with ET/PEN indicator
+    const actualWinnerForLabel = (isKnockout && act && act.home_score !== null) ? getActualWinner(act) : null;
+    const headHome = actualWinnerForLabel === 'H' ? `<strong>${m.home}</strong>` : m.home;
+    const headAway = actualWinnerForLabel === 'A' ? `<strong>${m.away}</strong>` : m.away;
     const actLabel = act&&act.home_score!==null
-      ? `${act.home_score}–${act.away_score}${['AET','PEN'].includes(act.status)?' ('+act.status+')':''}`
+      ? `${act.home_score}–${act.away_score}${act.status==='PEN'&&act.pen_home!==null?` (${act.pen_home}–${act.pen_away} rp.)`:act.status==='AET'?' (jatkoaika)':''}`
       : '';
 
     html += `<div class="match${locked?' locked':''}">
       <div class="match-head">
-        <span class="match-teams">${m.home} – ${m.away}</span>
+        <span class="match-teams">${headHome} – ${headAway}</span>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
           ${actLabel?`<span style="font-size:12px;font-weight:700;color:var(--text-muted)">${actLabel}</span>`:''}
           <span class="match-date" style="${locked?'color:#f59e0b':''}">${timeLabel}</span>
@@ -1069,13 +1075,18 @@ function renderResults() {
     const statusLabel = act?.status ? {FT:'Päättynyt',AET:'Päättynyt (jatkoaika)',PEN:'Päättynyt (rangaistuspotkut)','1H':'1. puoliaika','HT':'Puoliaika','2H':'2. puoliaika',ET:'Jatkoaika',P:'Rangaistuspotkut'}[act.status] ?? act.status : null;
 
     if(act && act.home_score !== null) {
+      const actualWinner = isKnockoutMatch(m.id) ? getActualWinner(act) : null;
+      const rHome = actualWinner === 'H' ? `<strong>${m.home}</strong>` : m.home;
+      const rAway = actualWinner === 'A' ? `<strong>${m.away}</strong>` : m.away;
+      const penInfo = (act.status === 'PEN' && act.pen_home !== null)
+        ? ` <span style="font-size:13px;color:var(--text-muted)">(${act.pen_home}–${act.pen_away} rp.)</span>` : '';
       html+=`<div class="match">
         <div class="match-head">
-          <span class="match-teams">${m.home} – ${m.away}</span>
+          <span class="match-teams">${rHome} – ${rAway}</span>
           <span class="match-date" style="color:var(--green-mid)">${statusLabel||'Päättynyt'}</span>
         </div>
         <div class="match-body" style="display:flex;align-items:center;gap:12px">
-          <span style="font-size:28px;font-weight:700;letter-spacing:2px">${act.home_score} – ${act.away_score}</span>
+          <span style="font-size:28px;font-weight:700;letter-spacing:2px">${act.home_score} – ${act.away_score}</span>${penInfo}
           <span style="font-size:12px;color:var(--text-muted)">${m.home} vs ${m.away}</span>
         </div>
       </div>`;
@@ -1099,12 +1110,26 @@ function isKnockoutMatch(matchId) {
 }
 
 function getActualWinner(act) {
-  // For FT: winner from score; for AET: score after ET; for PEN: score usually equal, need explicit winner
+  // Determines who actually won the match, including AET and penalties.
+  // Returns 'H', 'A', or null if it cannot yet be determined.
   if(!act) return null;
+
+  // Normal/extra time decided it outright
   if(act.home_score > act.away_score) return 'H';
   if(act.home_score < act.away_score) return 'A';
-  // Equal score = went to PEN (in knockout)
-  return 'PEN';
+
+  // Scores level (typically after AET) – check penalty shootout
+  if(act.status === 'PEN') {
+    if(act.pen_home !== null && act.pen_away !== null && act.pen_home !== act.pen_away) {
+      return act.pen_home > act.pen_away ? 'H' : 'A';
+    }
+    // PEN status but no penalty score yet recorded – winner not known yet
+    return null;
+  }
+
+  // Scores level and not a penalty shootout situation (e.g. AET truly tied,
+  // which shouldn't happen in a knockout match, or data not finished yet)
+  return null;
 }
 
 function getPoints(matchId, playerId) {
@@ -1119,35 +1144,14 @@ function getPoints(matchId, playerId) {
     // Knockout: winner (2p) + correct normal-time score (+1p) = max 3p
     if(!pred.winner) return null; // must pick a winner
 
-    // Determine actual winner (who won incl. AET/PEN)
-    const actWinner = getActualWinner(act);
+    const actualWinner = getActualWinner(act);
+    if(actualWinner === null) return null; // not yet decided (e.g. PEN in progress)
 
-    // For PEN: actWinner is 'PEN' (scores equal), winner determined externally
-    // API for PEN usually returns equal scores - we need to check who advanced
-    // We compare pred.winner against actual score direction or PEN result
-    // Since API may return 1-1 AET and we don't have PEN winner explicitly,
-    // we use: if score equal after AET, check if API marked home or away as winner
-    // For now, treat PEN as: correct if score was equal AND they picked the right team
-    // The API status 'PEN' with equal scores means we check home_score vs away_score
-    // If still equal, we can't determine winner from score alone - skip winner pts
-    const normalTimeActH = act.home_score;
-    const normalTimeActA = act.away_score;
-    const actualNormalWinner = normalTimeActH > normalTimeActA ? 'H'
-                             : normalTimeActH < normalTimeActA ? 'A' : null; // null = went to AET/PEN
-
-    // Winner points: pred.winner must match who actually won (incl. AET/PEN)
-    // For AET/PEN we compare against the score direction after extra time
-    // If scores still equal (PEN), we give winner pts if API final result shows who won
-    // Simplest: use score after full time (inc AET) for winner determination
-    const correctWinner = pred.winner === (normalTimeActH > normalTimeActA ? 'H'
-                        : normalTimeActH < normalTimeActA ? 'A'
-                        : pred.winner); // PEN: can't determine from score, award if picked
-
-    if(!correctWinner && actualNormalWinner !== null) return 0;
+    if(pred.winner !== actualWinner) return 0;
 
     let pts = 2; // correct winner
 
-    // +1p for exact normal-time score (FT before AET)
+    // +1p for exact normal-time score (the score before any AET/PEN)
     if(pred.home_score !== null && pred.away_score !== null &&
        pred.home_score === act.home_score && pred.away_score === act.away_score) {
       pts += 1;
@@ -1388,13 +1392,6 @@ async function init() {
       localStorage.removeItem('mm26_myId');
       const sub = document.getElementById('loginSub');
       if(sub) sub.textContent = 'Valitse nimesi uudelleen';
-      const c = document.getElementById('loginPlayerList');
-      if(c) {
-        const dbg = document.createElement('div');
-        dbg.style.cssText = 'font-size:10px;color:#999;text-align:center;margin-top:8px';
-        dbg.textContent = `[debug] savedId=${savedId} ei löytynyt ${players.length} pelaajan joukosta`;
-        c.appendChild(dbg);
-      }
     }
   }
   // Show login overlay – it's already visible by default
